@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Money</title>
+    
+    <!-- React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10b981',
+                        secondary: '#3b82f6',
+                        darkBg: '#0f172a',
+                        darkCard: '#1e293b'
+                    },
+                    keyframes: {
+                        shake: {
+                            '0%, 100%': { transform: 'translateX(0)' },
+                            '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-5px)' },
+                            '20%, 40%, 60%, 80%': { transform: 'translateX(5px)' }
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translate(-50%, -20px)' },
+                            '100%': { opacity: '1', transform: 'translate(-50%, 0)' }
+                        }
+                    },
+                    animation: {
+                        shake: 'shake 0.5s ease-in-out',
+                        'fade-in-alert': 'fadeIn 0.3s ease-out forwards',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.5); border-radius: 10px; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .glass-panel { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .dark .glass-panel { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .no-spinners::-webkit-outer-spin-button, .no-spinners::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+
+    <!-- FIREBASE MODULES -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Mengekspos fungsi ke window agar dapat dipanggil oleh React/Babel
+        window.FirebaseAPI = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc };
+        window.dispatchEvent(new Event('firebase-loaded'));
+    </script>
+</head>
+<body class="bg-gray-50 text-gray-800 transition-colors duration-300 dark:bg-darkBg dark:text-gray-100 overflow-hidden text-sm md:text-base">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- GLOBAL FIREBASE VARIABLES ---
+        let app, auth, db, appId;
+
+        // --- UTILS ---
+        const formatRp = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka || 0);
+        const parseRp = (rpString) => parseInt(rpString.replace(/[^0-9]/g, ''), 10) || 0;
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        
+        const getLS = (key, def) => { try { const i = localStorage.getItem(key); return i ? JSON.parse(i) : def; } catch (e) { return def; } };
+        const setLS = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} };
+
+        const compressImage = (file, callback) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image(); img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas'); const MAX_WIDTH = 1280;
+                    let width = img.width, height = img.height;
+                    if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    canvas.width = width; canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', 0.6));
+                };
+            };
+        };
+
+        const customAlert = (msg) => {
+            const div = document.createElement('div');
+            div.className = "fixed top-6 left-1/2 transform -translate-x-1/2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-3 rounded-xl shadow-2xl z-[9999] animate-fade-in-alert font-bold text-sm md:text-base text-center border border-gray-700 dark:border-gray-200";
+            div.style.minWidth = "280px"; div.innerHTML = `<i class="fa-solid fa-circle-info mr-2"></i> ${msg}`;
+            document.body.appendChild(div);
+            setTimeout(() => { div.style.opacity = '0'; div.style.transform = 'translate(-50%, -20px)'; setTimeout(() => div.remove(), 500); }, 3000);
+        };
+
+        const safeConfirm = (msg) => { try { return window.confirm(msg); } catch(e) { customAlert("Aksi diproses"); return true; } };
+
+        // --- COMPONENTS ---
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-darkCard w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[95vh]">
+                        <div className="flex justify-between items-center p-3 md:p-4 border-b dark:border-gray-700">
+                            <h3 className="text-base md:text-lg font-bold">{title}</h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-red-500"><i className="fa-solid fa-times text-lg md:text-xl"></i></button>
+                        </div>
+                        <div className="p-3 md:p-4 overflow-y-auto">{children}</div>
+                    </div>
+                </div>
+            );
+        };
+
+        const DownloadCSV = ({ data, filename }) => {
+            const handleDownload = () => {
+                if (data.length === 0) return customAlert("Tidak ada data untuk diunduh.");
+                const headers = Object.keys(data[0]).join(",");
+                const rows = data.map(row => Object.values(row).map(val => `"${val}"`).join(",")).join("\n");
+                const blob = new Blob([`${headers}\n${rows}`], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = filename;
+                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            };
+            return (
+                <button onClick={handleDownload} className="flex items-center gap-1.5 px-2.5 py-1.5 md:px-3 md:py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs md:text-sm shadow-md">
+                    <i className="fa-solid fa-file-csv"></i> Unduh CSV
+                </button>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+            const [currentUser, setCurrentUser] = useState(getLS('fm_session', null)); // Sesi Aplikasi
+            const [bgImage, setBgImage] = useState(localStorage.getItem('fm_bg') || '');
+            
+            // Firebase Auth State
+            const [fbUser, setFbUser] = useState(null);
+
+            // Database States
+            const [loadingDb, setLoadingDb] = useState(true);
+            const [usersDb, setUsersDb] = useState([]);
+            const [transDb, setTransDb] = useState([]);
+            const [targetsDb, setTargetsDb] = useState([]);
+
+            useEffect(() => { document.documentElement.className = theme; localStorage.setItem('theme', theme); }, [theme]);
+
+            // EFFECT 1: Proses Autentikasi Terlebih Dahulu (Sesuai RULE 3)
+            useEffect(() => {
+                const { signInWithCustomToken, signInAnonymously, onAuthStateChanged } = window.FirebaseAPI;
+                let unsubAuth;
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { 
+                            await signInWithCustomToken(auth, __initial_auth_token); 
+                        } else { 
+                            await signInAnonymously(auth); 
+                        }
+                    } catch(e) { 
+                        console.error("Firebase Auth Error:", e);
+                        // Jika auth gagal total, set loadingDb false agar user tetap bisa melihat halaman offline/lokal jika rules mengizinkan
+                        setLoadingDb(false);
+                    }
+                };
+                
+                initAuth();
+
+                unsubAuth = onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        setFbUser(user);
+                    } else {
+                        setFbUser(null);
+                        setLoadingDb(false);
+                    }
+                });
+
+                return () => {
+                    if (unsubAuth) unsubAuth();
+                };
+            }, []);
+
+            // EFFECT 2: Tarik data HANYA jika fbUser sudah terautentikasi (Sesuai RULE 3 & Menghilangkan Permissions Error)
+            useEffect(() => {
+                if (!fbUser) return; // Pelindung (Guard) agar query tidak dijalankan saat unauthenticated
+
+                const { collection, onSnapshot } = window.FirebaseAPI;
+                const cUsers = collection(db, 'artifacts', appId, 'public', 'data', 'fm_users');
+                const cTrans = collection(db, 'artifacts', appId, 'public', 'data', 'fm_trans');
+                const cTargets = collection(db, 'artifacts', appId, 'public', 'data', 'fm_targets');
+
+                const un1 = onSnapshot(cUsers, snap => { 
+                    setUsersDb(snap.docs.map(d => d.data())); 
+                    setLoadingDb(false); 
+                }, err => { 
+                    console.error("DB Users Error:", err); 
+                    setLoadingDb(false); 
+                });
+
+                const un2 = onSnapshot(cTrans, snap => { 
+                    setTransDb(snap.docs.map(d => d.data())); 
+                }, err => {
+                    console.error("DB Trans Error:", err);
+                });
+
+                const un3 = onSnapshot(cTargets, snap => { 
+                    setTargetsDb(snap.docs.map(d => d.data())); 
+                }, err => {
+                    console.error("DB Targets Error:", err);
+                });
+
+                return () => {
+                    if (un1) un1();
+                    if (un2) un2();
+                    if (un3) un3();
+                };
+            }, [fbUser]);
+
+            const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+
+            const login = (user) => { setCurrentUser(user); setLS('fm_session', user); };
+            const logout = () => { setCurrentUser(null); localStorage.removeItem('fm_session'); };
+
+            if (loadingDb) return <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-darkBg text-primary"><i className="fa-solid fa-circle-notch fa-spin text-4xl mb-4"></i><p className="font-bold animate-pulse">Menghubungkan Database...</p></div>;
+
+            if (!currentUser) return <SplashScreen usersDb={usersDb} onLogin={login} toggleTheme={toggleTheme} theme={theme} />;
+
+            return (
+                <div className="h-screen w-full flex relative text-sm md:text-base">
+                    {bgImage && <div className="absolute inset-0 z-0 bg-cover bg-center opacity-10 dark:opacity-20 pointer-events-none" style={{ backgroundImage: `url(${bgImage})` }}></div>}
+                    <div className="flex w-full h-full relative z-10">
+                        {currentUser.role === 'admin' ? 
+                            <AdminApp user={currentUser} logout={logout} toggleTheme={toggleTheme} theme={theme} setBgImage={setBgImage} transDb={transDb} usersDb={usersDb} targetsDb={targetsDb} /> : 
+                            <UserApp user={currentUser} logout={logout} toggleTheme={toggleTheme} theme={theme} transDb={transDb} targetsDb={targetsDb} />
+                        }
+                    </div>
+                </div>
+            );
+        };
+
+        // --- SPLASH & AUTH ---
+        const SplashScreen = ({ usersDb, onLogin, toggleTheme, theme }) => {
+            const [showLogin, setShowLogin] = useState(false);
+            const [isRegister, setIsRegister] = useState(false);
+            const [isAdminMode, setIsAdminMode] = useState(false);
+            const [uname, setUname] = useState('');
+            const [pass, setPass] = useState('');
+            const [showPass, setShowPass] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [quote, setQuote] = useState("Kendalikan keuangan Anda darimana saja.");
+
+            const quotes = ["Hemat pangkal kaya, rajin pangkal pandai.", "Uang adalah alat, bukan tujuan.", "Data Anda kini tersinkronisasi di Awan.", "Tabungan hari ini, kebebasan esok hari."];
+
+            useEffect(() => { const intv = setInterval(() => setQuote(quotes[Math.floor(Math.random() * quotes.length)]), 4000); return () => clearInterval(intv); }, []);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                
+                if (isAdminMode) {
+                    if (uname === 'arnnon' && pass === 'andri123') onLogin({ id: 'admin', username: 'Admin', role: 'admin' });
+                    else customAlert("Kredensial Admin Salah!");
+                    setLoading(false); return;
+                }
+
+                if (isRegister) {
+                    if (usersDb.find(u => u.username === uname)) { customAlert("Username sudah terdaftar!"); setLoading(false); return; }
+                    if (uname.length < 3 || pass.length < 3) { customAlert("Minimal 3 karakter!"); setLoading(false); return; }
+                    
+                    const newId = generateId();
+                    try {
+                        const { doc, setDoc } = window.FirebaseAPI;
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_users', newId), { id: newId, username: uname, password: pass, role: 'user' });
+                        customAlert("Pendaftaran berhasil, silakan login.");
+                        setIsRegister(false); setPass('');
+                    } catch(e) { 
+                        console.error(e);
+                        customAlert("Gagal terhubung: " + e.message); 
+                    }
+                } else {
+                    const user = usersDb.find(u => u.username === uname && u.password === pass);
+                    if (user) onLogin(user); else customAlert("Username atau Password salah!");
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-slate-900 dark:to-slate-800">
+                    <div className="absolute top-4 right-4 flex gap-2 md:gap-3">
+                        <button onClick={toggleTheme} className="w-8 h-8 md:w-10 md:h-10 rounded-full glass-panel flex items-center justify-center text-gray-700 dark:text-yellow-400 hover:scale-110 transition-transform shadow-md">
+                            <i className={`text-xs md:text-sm fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i>
+                        </button>
+                        <button onClick={() => { setIsAdminMode(!isAdminMode); setShowLogin(true); setIsRegister(false); setUname(''); setPass(''); }} className="w-8 h-8 md:w-10 md:h-10 rounded-full glass-panel flex items-center justify-center text-gray-700 dark:text-gray-300 hover:text-red-500 transition-colors shadow-md">
+                            <i className="text-xs md:text-sm fa-solid fa-key"></i>
+                        </button>
+                    </div>
+
+                    {!showLogin ? (
+                        <div className="text-center flex flex-col items-center z-10 p-2">
+                            <img src="https://iili.io/C9EsjQS.png" alt="Family Money Logo" className="w-24 h-24 md:w-32 md:h-32 mb-4 md:mb-6 animate-pulse drop-shadow-xl" />
+                            <h1 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-500 to-blue-500 mb-2">Family Money</h1>
+                            <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 max-w-xs md:max-w-sm mb-8 md:mb-10 h-10 italic transition-all duration-500">"{quote}"</p>
+                            <button onClick={() => setShowLogin(true)} className="px-6 md:px-8 py-2.5 md:py-3 text-sm md:text-base bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full font-bold shadow-lg shadow-green-500/30 hover:scale-105 transition-transform">
+                                Masuk / Daftar
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-white dark:bg-darkCard p-6 md:p-8 rounded-2xl shadow-2xl w-full max-w-sm md:max-w-md z-10 glass-panel animate-fade-in border dark:border-gray-700">
+                            <button onClick={() => {setShowLogin(false); setIsAdminMode(false); setUname(''); setPass('');}} className="mb-4 text-xs md:text-sm text-gray-500 hover:text-gray-800 dark:hover:text-white transition-colors">
+                                <i className="fa-solid fa-arrow-left mr-2"></i> Kembali
+                            </button>
+                            <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-center">
+                                {isAdminMode ? 'Login Admin' : (isRegister ? 'Daftar Akun Baru' : 'Login User')}
+                            </h2>
+                            <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:gap-4 text-sm md:text-base">
+                                <div>
+                                    <label className="block font-medium mb-1 text-xs md:text-sm">Username</label>
+                                    <div className="relative">
+                                        <i className="fa-solid fa-user absolute left-3 top-2.5 md:top-3 text-gray-400 text-xs md:text-sm"></i>
+                                        <input type="text" value={uname} onChange={e => setUname(e.target.value)} required className="w-full pl-8 md:pl-10 pr-3 py-1.5 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block font-medium mb-1 text-xs md:text-sm">Password</label>
+                                    <div className="relative">
+                                        <i className="fa-solid fa-lock absolute left-3 top-2.5 md:top-3 text-gray-400 text-xs md:text-sm"></i>
+                                        <input type={showPass ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} required className="w-full pl-8 md:pl-10 pr-10 py-1.5 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-lg outline-none focus:ring-2 focus:ring-blue-400" />
+                                        <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-2.5 md:top-3 text-gray-400 hover:text-gray-600 text-xs md:text-sm transition-colors">
+                                            <i className={`fa-solid ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button type="submit" disabled={loading} className="w-full py-2 md:py-2.5 mt-2 bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg font-bold hover:opacity-90 transition-opacity shadow-md disabled:opacity-50 flex justify-center items-center gap-2">
+                                    {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : (isAdminMode ? 'Masuk sebagai Admin' : (isRegister ? 'Daftar' : 'Masuk'))}
+                                </button>
+                            </form>
+                            {!isAdminMode && (
+                                <p className="mt-4 text-center text-xs md:text-sm text-gray-600 dark:text-gray-400">
+                                    {isRegister ? 'Sudah punya akun? ' : 'Belum punya akun? '}
+                                    <button onClick={() => { setIsRegister(!isRegister); setUname(''); setPass(''); }} className="text-blue-500 font-semibold hover:underline">
+                                        {isRegister ? 'Login disini' : 'Daftar disini'}
+                                    </button>
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- LAYOUT WRAPPER ---
+        const Layout = ({ user, logout, toggleTheme, theme, children, activeTab, setActiveTab, tabs }) => {
+            return (
+                <div className="flex flex-col md:flex-row w-full h-full overflow-hidden">
+                    <div className="hidden md:flex flex-col w-64 bg-white dark:bg-darkCard border-r border-gray-200 dark:border-gray-800 shadow-lg z-20">
+                        <div className="p-4 md:p-6 flex items-center gap-3">
+                            <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-8 h-8" />
+                            <span className="text-lg md:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-blue-500">Family Money</span>
+                        </div>
+                        <nav className="flex-1 px-4 space-y-1.5 md:space-y-2 mt-2 md:mt-4">
+                            {tabs.map(tab => (
+                                <button key={tab.id} onClick={() => setActiveTab(tab.id)} 
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-xl transition-all text-sm md:text-base ${activeTab === tab.id ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
+                                    <i className={`fa-solid ${tab.icon} w-5 text-center text-sm md:text-base`}></i> {tab.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+
+                    <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+                        <header className="h-14 md:h-16 bg-white/80 dark:bg-darkCard/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-3 md:px-8 z-20">
+                            <div className="flex items-center gap-2 md:gap-4">
+                                <div className="md:hidden flex items-center gap-2 mr-1">
+                                    <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 leading-none">Selamat Datang,</p>
+                                    <p className="font-bold text-xs md:text-sm leading-tight truncate max-w-[100px] md:max-w-none">{user.username}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <button onClick={toggleTheme} className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-sm">
+                                    <i className={`text-xs md:text-sm fa-solid ${theme === 'dark' ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-600'}`}></i>
+                                </button>
+                                <button onClick={logout} className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 flex items-center justify-center hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors shadow-sm" title="Keluar">
+                                    <i className="text-xs md:text-sm fa-solid fa-power-off"></i>
+                                </button>
+                            </div>
+                        </header>
+
+                        <div className="md:hidden w-full bg-white dark:bg-darkCard border-b border-gray-200 dark:border-gray-800 overflow-x-auto hide-scroll z-20 shadow-sm">
+                            <div className="flex px-1 py-1 gap-1 w-full justify-between">
+                                {tabs.map(tab => (
+                                    <button key={tab.id} onClick={() => setActiveTab(tab.id)} 
+                                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-lg transition-all ${activeTab === tab.id ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        <i className={`fa-solid ${tab.icon} text-sm`}></i>
+                                        <span className="text-[9px] uppercase tracking-wider truncate w-full text-center">{tab.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <main className="flex-1 overflow-y-auto p-3 md:p-8 z-10 pb-24 md:pb-8">
+                            {children}
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        // ================= USER VIEWS =================
+
+        const UserApp = ({ user, logout, toggleTheme, theme, transDb, targetsDb }) => {
+            const [activeTab, setActiveTab] = useState('beranda');
+            const tabs = [
+                { id: 'beranda', label: 'Beranda', icon: 'fa-home' },
+                { id: 'riwayat', label: 'Riwayat', icon: 'fa-list-alt' },
+                { id: 'target', label: 'Target', icon: 'fa-bullseye' },
+                { id: 'brankas', label: 'Brankas', icon: 'fa-vault' },
+                { id: 'pengaturan', label: 'Pengaturan', icon: 'fa-cog' }
+            ];
+
+            const transactions = useMemo(() => transDb.filter(t => t.userId === user.id), [transDb, user.id]);
+            const targets = useMemo(() => targetsDb.filter(t => t.userId === user.id), [targetsDb, user.id]);
+
+            return (
+                <Layout user={user} logout={logout} toggleTheme={toggleTheme} theme={theme} activeTab={activeTab} setActiveTab={setActiveTab} tabs={tabs}>
+                    {activeTab === 'beranda' && <UserBeranda user={user} transactions={transactions} />}
+                    {activeTab === 'riwayat' && <UserRiwayat transactions={transactions} />}
+                    {activeTab === 'target' && <UserTarget user={user} transactions={transactions} targets={targets} />}
+                    {activeTab === 'brankas' && <UserBrankas transactions={transactions} />}
+                    {activeTab === 'pengaturan' && <UserPengaturan user={user} logout={logout} transactions={transactions} />}
+                </Layout>
+            );
+        };
+
+        const UserBeranda = ({ user, transactions }) => {
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [modalType, setModalType] = useState('in');
+            const [formNominal, setFormNominal] = useState('');
+            const [formName, setFormName] = useState('');
+            const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+            const [formCat, setFormCat] = useState('Umum');
+            const [saving, setSaving] = useState(false);
+
+            const stats = useMemo(() => {
+                let saldo = 0, tabungan = 0, pinjaman = 0, pUmum = 0, pPemasukanUmum = 0;
+                transactions.filter(t => !t.isDeleted).forEach(t => {
+                    const amt = parseInt(t.amount);
+                    if (t.category === 'Umum') {
+                        if (t.type === 'in') { saldo += amt; pPemasukanUmum += amt; } else { saldo -= amt; pUmum += amt; }
+                    } else if (t.category === 'Tabungan') {
+                        if (t.type === 'in') { saldo += amt; tabungan -= amt; } else { saldo -= amt; tabungan += amt; }
+                    } else if (t.category === 'Pinjaman') {
+                        if (t.type === 'in') { saldo += amt; pinjaman -= amt; } else { saldo -= amt; pinjaman += amt; }
+                    }
+                });
+                return { saldo, pUmum, pPemasukanUmum, isAlert: pPemasukanUmum > 0 && pUmum > (pPemasukanUmum * 0.8) };
+            }, [transactions]);
+
+            const targetProgress = useMemo(() => {
+                const target = getLS('fm_targets', []).find(t => t.userId === user.id);
+                if (!target || target.price <= 0) return 0;
+                let tabungan = 0;
+                transactions.filter(t => !t.isDeleted && t.category === 'Tabungan').forEach(t => { tabungan += t.type === 'out' ? parseInt(t.amount) : -parseInt(t.amount); });
+                return Math.min(100, Math.max(0, (tabungan / target.price) * 100));
+            }, [transactions, user.id]);
+
+            const handleSubmitTransaction = async (e) => {
+                e.preventDefault();
+                const amt = parseRp(formNominal);
+                if (amt <= 0) return customAlert("Nominal tidak valid!");
+                
+                setSaving(true);
+                try {
+                    const { doc, setDoc } = window.FirebaseAPI;
+                    const newId = generateId();
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_trans', newId), { 
+                        id: newId, userId: user.id, type: modalType, category: formCat, name: formName, amount: amt, date: formDate, timestamp: new Date().getTime(), isDeleted: false 
+                    });
+                    setIsModalOpen(false);
+                    customAlert("Data berhasil disimpan!");
+                } catch (err) { 
+                    console.error(err);
+                    customAlert("Gagal menyimpan: " + err.message); 
+                }
+                setSaving(false);
+            };
+
+            const recentTrans = transactions.filter(t => !t.isDeleted).sort((a,b) => b.timestamp - a.timestamp).slice(0,5);
+
+            return (
+                <div className="space-y-4 md:space-y-6 max-w-4xl mx-auto">
+                    <div className={`relative p-5 md:p-6 rounded-3xl shadow-xl overflow-hidden ${stats.saldo < 0 ? 'bg-gradient-to-br from-red-600 to-rose-700' : 'bg-gradient-to-br from-emerald-500 to-teal-700'} text-white`}>
+                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-24 h-24 md:w-32 md:h-32 rounded-full bg-white opacity-10"></div>
+                        <div className="relative z-10 flex flex-col items-center text-center">
+                            <p className="text-xs md:text-sm opacity-80 mb-1">Total Saldo Aktif</p>
+                            <h2 className="text-3xl md:text-5xl font-bold tracking-wider mb-4 md:mb-6">{formatRp(stats.saldo)}</h2>
+                            <div className="w-full flex justify-between bg-black/20 rounded-xl p-3 md:p-4 backdrop-blur-sm text-xs md:text-sm">
+                                <div className="text-left">
+                                    <p className="opacity-70 text-[10px] md:text-xs"><i className="fa-solid fa-arrow-down mr-1"></i> Pemasukan Umum</p>
+                                    <p className="font-bold text-green-300">{formatRp(stats.pPemasukanUmum)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="opacity-70 text-[10px] md:text-xs"><i className="fa-solid fa-arrow-up mr-1"></i> Pengeluaran Umum</p>
+                                    <p className="font-bold text-red-300">{formatRp(stats.pUmum)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {stats.isAlert && (
+                        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 md:p-4 rounded-lg flex items-center shadow-md animate-shake text-xs md:text-sm">
+                            <i className="fa-solid fa-robot text-xl md:text-2xl mr-3 animate-pulse"></i>
+                            <div>
+                                <p className="font-bold text-sm">Peringatan Financial Coach!</p>
+                                <p>Pengeluaran umum melebihi 80% pemasukan.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="bg-white dark:bg-darkCard p-3 md:p-4 rounded-2xl shadow-sm border dark:border-gray-800">
+                        <div className="flex justify-between items-center mb-1.5 md:mb-2 text-xs md:text-sm">
+                            <h3 className="font-bold text-gray-600 dark:text-gray-300"><i className="fa-solid fa-bullseye mr-1.5 md:mr-2"></i>Target Tracker</h3>
+                            <span className="font-bold text-primary">{targetProgress.toFixed(1)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 md:h-2.5">
+                            <div className="bg-gradient-to-r from-blue-500 to-green-500 h-2 md:h-2.5 rounded-full" style={{ width: `${targetProgress}%` }}></div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                        <button onClick={() => {setModalType('in'); setFormNominal(''); setFormName(''); setFormCat('Umum'); setIsModalOpen(true);}} className="flex items-center justify-center gap-1.5 md:gap-2 p-3 md:p-4 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-2xl font-bold text-sm md:text-base transition-colors shadow-sm">
+                            <i className="fa-solid fa-plus-circle text-lg md:text-xl"></i> Pemasukan
+                        </button>
+                        <button onClick={() => {setModalType('out'); setFormNominal(''); setFormName(''); setFormCat('Umum'); setIsModalOpen(true);}} className="flex items-center justify-center gap-1.5 md:gap-2 p-3 md:p-4 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-2xl font-bold text-sm md:text-base transition-colors shadow-sm">
+                            <i className="fa-solid fa-minus-circle text-lg md:text-xl"></i> Pengeluaran
+                        </button>
+                    </div>
+
+                    <div>
+                        <h3 className="text-base md:text-lg font-bold mb-2.5 md:mb-3">Transaksi Terakhir</h3>
+                        <div className="flex flex-col gap-2 md:gap-3">
+                            {recentTrans.length === 0 ? (
+                                <p className="text-center text-gray-500 text-xs md:text-sm py-4">Belum ada transaksi.</p>
+                            ) : recentTrans.map(t => (
+                                <div key={t.id} className="bg-white dark:bg-darkCard p-3 md:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                                    <div className="flex items-center gap-3 md:gap-4">
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center ${t.type === 'in' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                            <i className={`text-xs md:text-sm fa-solid ${t.category === 'Tabungan' ? 'fa-piggy-bank' : t.category === 'Pinjaman' ? 'fa-handshake' : (t.type === 'in' ? 'fa-arrow-down' : 'fa-arrow-up')}`}></i>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <p className="font-bold text-sm md:text-base truncate max-w-[130px] sm:max-w-[250px]">{t.name}</p>
+                                            <p className="text-[10px] md:text-xs text-gray-500">{t.date} • {t.category}</p>
+                                        </div>
+                                    </div>
+                                    <p className={`font-bold text-sm md:text-base whitespace-nowrap ${t.type === 'in' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <Modal isOpen={isModalOpen} onClose={() => !saving && setIsModalOpen(false)} title={`Input ${modalType === 'in' ? 'Pemasukan' : 'Pengeluaran'}`}>
+                        <form onSubmit={handleSubmitTransaction} className="flex flex-col gap-3 md:gap-4 text-sm md:text-base">
+                            <div>
+                                <label className="block font-medium mb-1 text-xs md:text-sm">Nominal (Rp)</label>
+                                <input type="text" value={formNominal} onChange={e => {
+                                    const val = e.target.value.replace(/[^0-9]/g, '');
+                                    setFormNominal(val ? formatRp(val).replace('Rp', '').trim() : '');
+                                }} required disabled={saving} className="w-full px-3 py-1.5 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-lg focus:ring-2 outline-none font-bold md:text-lg transition-colors" placeholder="0" />
+                            </div>
+                            <div>
+                                <label className="block font-medium mb-1 text-xs md:text-sm">Transaksi</label>
+                                <input type="text" value={formName} onChange={e => setFormName(e.target.value)} required disabled={saving} className="w-full px-3 py-1.5 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-lg focus:ring-2 outline-none transition-colors" placeholder="Cth: Gaji / Makan" />
+                            </div>
+                            <div>
+                                <label className="block font-medium mb-1 text-xs md:text-sm">Tanggal</label>
+                                <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} required disabled={saving} className="w-full px-3 py-1.5 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-lg focus:ring-2 outline-none transition-colors" />
+                            </div>
+                            <div>
+                                <label className="block font-medium mb-1 text-xs md:text-sm">Kategori</label>
+                                <div className="grid grid-cols-3 gap-1.5 md:gap-2">
+                                    {['Umum', 'Tabungan', 'Pinjaman'].map(cat => (
+                                        <button key={cat} type="button" onClick={() => !saving && setFormCat(cat)}
+                                            className={`py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-colors border ${formCat === cat ? (modalType === 'in' ? 'bg-green-500 text-white border-green-500' : 'bg-red-500 text-white border-red-500') : 'bg-transparent text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600'}`}>
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <button type="submit" disabled={saving} className={`w-full py-2.5 md:py-3 mt-2 md:mt-4 text-white rounded-lg font-bold shadow-lg transition-transform hover:scale-[1.02] disabled:opacity-50 flex items-center justify-center gap-2 ${modalType === 'in' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                {saving ? <i className="fa-solid fa-spinner fa-spin"></i> : "Simpan Data"}
+                            </button>
+                        </form>
+                    </Modal>
+                </div>
+            );
+        };
+
+        const UserRiwayat = ({ transactions }) => {
+            const [filterTab, setFilterTab] = useState('Semua');
+            const [filterDateStr, setFilterDateStr] = useState('');
+            const [filterName, setFilterName] = useState('');
+
+            const filteredData = useMemo(() => {
+                let data = transactions.filter(t => !t.isDeleted);
+                if (filterTab === 'Pemasukan') data = data.filter(t => t.type === 'in');
+                if (filterTab === 'Pengeluaran') data = data.filter(t => t.type === 'out');
+                if (filterDateStr) data = data.filter(t => t.date === filterDateStr);
+                if (filterName) data = data.filter(t => t.name.toLowerCase().includes(filterName.toLowerCase()));
+                return data.sort((a,b) => b.timestamp - a.timestamp);
+            }, [transactions, filterTab, filterDateStr, filterName]);
+
+            const total = useMemo(() => filteredData.reduce((acc, curr) => acc + (curr.type === 'in' ? parseInt(curr.amount) : -parseInt(curr.amount)), 0), [filteredData]);
+            const csvData = useMemo(() => filteredData.map(t => ({Tanggal: t.date, Transaksi: t.name, Kategori: t.category, Tipe: t.type === 'in' ? 'Pemasukan' : 'Pengeluaran', Jumlah: t.amount})), [filteredData]);
+
+            return (
+                <div className="max-w-5xl mx-auto space-y-3 md:space-y-4">
+                    <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-white dark:bg-darkCard p-3 md:p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
+                        <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-lg w-full md:w-auto overflow-x-auto hide-scroll">
+                            {['Semua', 'Pemasukan', 'Pengeluaran'].map(tab => (
+                                <button key={tab} onClick={() => setFilterTab(tab)} className={`flex-1 md:flex-none px-3 py-1.5 md:px-4 md:py-1.5 rounded-md text-xs md:text-sm font-semibold transition-colors whitespace-nowrap ${filterTab === tab ? 'bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2 w-full md:w-auto">
+                            <input type="date" value={filterDateStr} onChange={e => setFilterDateStr(e.target.value)} className="px-2 py-1.5 md:px-3 text-xs md:text-sm bg-gray-50 dark:bg-slate-800 border rounded-lg outline-none w-1/2 md:w-auto transition-colors" />
+                            <input type="text" placeholder="Cari..." value={filterName} onChange={e => setFilterName(e.target.value)} className="px-2 py-1.5 md:px-3 text-xs md:text-sm bg-gray-50 dark:bg-slate-800 border rounded-lg outline-none w-1/2 md:w-auto transition-colors" />
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                        <div className="flex justify-between items-center p-3 md:p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-slate-800/50">
+                            <h3 className="font-bold text-sm md:text-base">Daftar Transaksi</h3>
+                            <DownloadCSV data={csvData} filename="riwayat.csv" />
+                        </div>
+                        
+                        <div className="flex flex-col">
+                            {filteredData.length === 0 ? (
+                                <div className="p-8 text-center text-sm text-gray-500">Data tidak ditemukan</div>
+                            ) : filteredData.map(t => (
+                                <div key={t.id} className="flex justify-between items-center p-3 md:p-4 border-b last:border-0 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center ${t.type === 'in' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                            <i className={`text-xs md:text-sm fa-solid ${t.category === 'Tabungan' ? 'fa-piggy-bank' : t.category === 'Pinjaman' ? 'fa-handshake' : (t.type === 'in' ? 'fa-arrow-down' : 'fa-arrow-up')}`}></i>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-sm md:text-base truncate max-w-[140px] sm:max-w-[300px]">{t.name}</span>
+                                            <span className="text-[10px] md:text-xs text-gray-500">{t.date} • {t.category}</span>
+                                        </div>
+                                    </div>
+                                    <span className={`font-bold text-sm md:text-base whitespace-nowrap ${t.type === 'in' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                        {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="bg-gray-50 dark:bg-slate-800/80 p-3 md:p-4 flex justify-between items-center font-bold border-t dark:border-gray-700 backdrop-blur-sm">
+                            <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">JUMLAH TOTAL:</span>
+                            <span className={`text-sm md:text-base ${total >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatRp(total)}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const UserTarget = ({ user, transactions, targets }) => {
+            const target = targets[0] || { name: 'Target Belum Diatur', price: 0 };
+            const [isEdit, setIsEdit] = useState(false);
+            const [editName, setEditName] = useState(target.name);
+            const [editPrice, setEditPrice] = useState(target.price ? target.price.toString() : '');
+            const [saving, setSaving] = useState(false);
+
+            const tabungan = useMemo(() => {
+                let sum = 0;
+                transactions.filter(t => !t.isDeleted && t.category === 'Tabungan').forEach(t => sum += t.type === 'out' ? parseInt(t.amount) : -parseInt(t.amount));
+                return sum;
+            }, [transactions]);
+
+            const targetVal = target.price;
+            const kekurangan = targetVal > 0 ? Math.max(0, targetVal - tabungan) : 0;
+            const percent = targetVal > 0 ? Math.min(100, Math.max(0, (tabungan / targetVal) * 100)) : 0;
+
+            const handleSave = async () => {
+                setSaving(true);
+                const val = parseRp(editPrice);
+                try {
+                    const { doc, setDoc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_targets', user.id), { id: user.id, userId: user.id, name: editName || 'Impian', price: val });
+                    setIsEdit(false);
+                    customAlert("Target berhasil diperbarui di Awan!");
+                } catch (err) { 
+                    console.error(err);
+                    customAlert("Gagal menyimpan: " + err.message); 
+                }
+                setSaving(false);
+            };
+
+            const isMobile = window.innerWidth < 768;
+            const radius = isMobile ? 70 : 90;
+            const circumference = 2 * Math.PI * radius;
+            const strokeDashoffset = circumference - (percent / 100) * circumference;
+
+            return (
+                <div className="max-w-2xl mx-auto flex flex-col items-center">
+                    <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 text-center text-gray-800 dark:text-white">Target Impian</h2>
+                    
+                    <div className="relative flex items-center justify-center mb-6 md:mb-8 scale-100 md:scale-110">
+                        <svg className="transform -rotate-90 w-48 h-48 md:w-64 md:h-64">
+                            <circle cx={isMobile ? "96" : "128"} cy={isMobile ? "96" : "128"} r={radius} stroke="currentColor" strokeWidth={isMobile ? "12" : "16"} fill="transparent" className="text-gray-200 dark:text-gray-700" />
+                            <circle cx={isMobile ? "96" : "128"} cy={isMobile ? "96" : "128"} r={radius} stroke="currentColor" strokeWidth={isMobile ? "12" : "16"} fill="transparent" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} className="text-blue-500 transition-all duration-1000 ease-out" />
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center text-center">
+                            <span className="text-4xl md:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-br from-blue-400 to-emerald-400">{percent.toFixed(0)}%</span>
+                            <span className="text-[10px] md:text-xs text-gray-500 uppercase tracking-widest mt-1">Tercapai</span>
+                        </div>
+                    </div>
+
+                    <div className="w-full bg-white dark:bg-darkCard p-5 md:p-6 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-800 text-center relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1.5 md:h-2 bg-gradient-to-r from-blue-400 to-emerald-400"></div>
+                        {!isEdit ? (
+                            <>
+                                <h3 className="text-2xl md:text-3xl font-bold mb-1.5 md:mb-2 text-gray-800 dark:text-white">{target.name}</h3>
+                                <p className="text-gray-500 text-xs md:text-sm mb-5 md:mb-6">Harga Target: <span className="font-bold text-gray-800 dark:text-white">{formatRp(targetVal)}</span></p>
+                                <div className="grid grid-cols-2 gap-3 md:gap-4 mb-5 md:mb-6">
+                                    <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 md:p-4 rounded-2xl border border-emerald-100 dark:border-emerald-800/30">
+                                        <p className="text-[10px] md:text-xs text-emerald-600 mb-1">Terkumpul</p>
+                                        <p className="text-sm md:text-xl font-bold text-emerald-700 dark:text-emerald-300">{formatRp(tabungan)}</p>
+                                    </div>
+                                    <div className="bg-orange-50 dark:bg-orange-900/20 p-3 md:p-4 rounded-2xl border border-orange-100 dark:border-orange-800/30">
+                                        <p className="text-[10px] md:text-xs text-orange-600 mb-1">Kekurangan</p>
+                                        <p className="text-sm md:text-xl font-bold text-orange-700 dark:text-orange-300">{formatRp(kekurangan)}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setIsEdit(true)} className="px-5 py-2 md:px-6 md:py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-xs md:text-sm font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                                    <i className="fa-solid fa-pen mr-1.5 md:mr-2"></i>Edit Target
+                                </button>
+                            </>
+                        ) : (
+                            <div className="flex flex-col gap-3 md:gap-4 text-left">
+                                <div>
+                                    <label className="block text-xs md:text-sm font-medium mb-1">Nama Target</label>
+                                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)} disabled={saving} className="w-full px-3 py-1.5 md:px-4 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base transition-colors" placeholder="Cth: Beli Motor" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs md:text-sm font-medium mb-1">Harga Target (Rp)</label>
+                                    <input type="text" value={editPrice} onChange={e => {
+                                        const val = e.target.value.replace(/[^0-9]/g, '');
+                                        setEditPrice(val ? formatRp(val).replace('Rp', '').trim() : '');
+                                    }} disabled={saving} className="w-full px-3 py-1.5 md:px-4 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm md:text-base transition-colors" />
+                                </div>
+                                <div className="flex gap-2 mt-2">
+                                    <button onClick={handleSave} disabled={saving} className="flex-1 py-1.5 md:py-2 bg-blue-500 text-white rounded-xl font-bold text-sm md:text-base hover:bg-blue-600 transition-colors disabled:opacity-50">Simpan</button>
+                                    <button onClick={() => !saving && setIsEdit(false)} className="flex-1 py-1.5 md:py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm md:text-base hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Batal</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const UserBrankas = ({ transactions }) => {
+            const [tab, setTab] = useState('Tabungan');
+
+            const stats = useMemo(() => {
+                let tabungan = 0, pinjaman = 0;
+                transactions.filter(t => !t.isDeleted).forEach(t => {
+                    const amt = parseInt(t.amount);
+                    if (t.category === 'Tabungan') { if (t.type === 'in') tabungan -= amt; else tabungan += amt; }
+                    else if (t.category === 'Pinjaman') { if (t.type === 'in') pinjaman -= amt; else pinjaman += amt; }
+                });
+                return { tabungan, pinjaman };
+            }, [transactions]);
+
+            const listData = useMemo(() => transactions.filter(t => t.category === tab).sort((a,b) => b.timestamp - a.timestamp), [transactions, tab]);
+
+            const handleDelete = async (id) => {
+                if(safeConfirm("Sembunyikan data ini dari riwayat? Total saldo tidak akan berubah.")) {
+                    try {
+                        const { doc, updateDoc } = window.FirebaseAPI;
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_trans', id), { isDeleted: true });
+                        customAlert("Disembunyikan.");
+                    } catch(err) { 
+                        console.error(err);
+                        customAlert("Gagal: " + err.message); 
+                    }
+                }
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+                    <div className="flex p-1 bg-gray-200 dark:bg-gray-800 rounded-xl w-full max-w-sm mx-auto">
+                        {['Tabungan', 'Pinjaman'].map(t => (
+                            <button key={t} onClick={() => setTab(t)} className={`flex-1 py-1.5 md:py-2 text-xs md:text-sm font-bold rounded-lg transition-all ${tab === t ? 'bg-white dark:bg-slate-700 shadow text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className={`p-6 md:p-8 rounded-3xl text-center text-white shadow-xl ${tab === 'Tabungan' ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}>
+                        <i className={`fa-solid ${tab === 'Tabungan' ? 'fa-piggy-bank' : 'fa-handshake'} text-3xl md:text-4xl mb-3 md:mb-4 opacity-50`}></i>
+                        <p className="text-xs md:text-sm font-medium opacity-80 mb-1">Total {tab}</p>
+                        <h2 className="text-3xl md:text-4xl font-extrabold tracking-wider">{formatRp(tab === 'Tabungan' ? stats.tabungan : stats.pinjaman)}</h2>
+                        <p className="text-[10px] md:text-xs opacity-70 mt-3 md:mt-4 leading-relaxed max-w-xs mx-auto">
+                            {tab === 'Tabungan' ? "Nabung (Pengeluaran) menambah, Tarik (Pemasukan) mengurangi." : "Beri Pinjaman (Pengeluaran) menambah, Terima Cicilan (Pemasukan) mengurangi."}
+                        </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-darkCard rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                        <div className="p-3 md:p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-slate-800/50">
+                            <h3 className="font-bold text-sm md:text-base">Riwayat {tab} (Permanen)</h3>
+                        </div>
+                        <div className="flex flex-col">
+                            {listData.length === 0 ? (
+                                <div className="p-8 text-center text-sm text-gray-500">Belum ada riwayat.</div>
+                            ) : listData.filter(t => tab === 'Tabungan' || !t.isDeleted).map((t, idx) => (
+                                <div key={t.id} className="flex justify-between items-center p-3 md:p-4 border-b last:border-0 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex shrink-0 items-center justify-center bg-gray-100 dark:bg-slate-700 text-gray-500 text-[10px] md:text-xs font-bold">
+                                            {idx + 1}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-sm md:text-base truncate max-w-[120px] sm:max-w-[250px]">{t.name}</span>
+                                            <span className="text-[10px] md:text-xs text-gray-500">{t.date}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 md:gap-4">
+                                        <span className={`font-bold text-sm md:text-base whitespace-nowrap ${t.type === 'in' ? 'text-green-600' : 'text-red-600'}`}>
+                                            {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                        </span>
+                                        {tab === 'Pinjaman' && (
+                                            <button onClick={() => handleDelete(t.id)} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors shrink-0">
+                                                <i className="fa-solid fa-trash text-[10px] md:text-xs"></i>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const UserPengaturan = ({ user, logout, transactions }) => {
+            const [name, setName] = useState(user.username);
+            const [pass, setPass] = useState('');
+            const [loading, setLoading] = useState(false);
+            
+            const handleUpdateProfile = async (e) => {
+                e.preventDefault();
+                if(name.length < 3) return customAlert("Nama minimal 3 karakter");
+                setLoading(true);
+                try {
+                    const { doc, updateDoc } = window.FirebaseAPI;
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_users', user.id), { username: name, password: pass || user.password });
+                    customAlert("Profil diperbarui di Awan! Silakan login kembali."); 
+                    logout();
+                } catch(err) { 
+                    console.error(err);
+                    customAlert("Gagal: " + err.message); 
+                }
+                setLoading(false);
+            };
+
+            const handleClearHistory = async () => {
+                if(safeConfirm("Tindakan ini akan MENGHAPUS SEMUA riwayat dari Cloud. Lanjutkan?")) {
+                    setLoading(true);
+                    try {
+                        const { doc, deleteDoc } = window.FirebaseAPI;
+                        for (let t of transactions) {
+                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_trans', t.id));
+                        }
+                        customAlert("Riwayat Cloud Anda berhasil dibersihkan.");
+                    } catch(err) { 
+                        console.error(err);
+                        customAlert("Gagal menghapus: " + err.message); 
+                    }
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
+                    <div className="bg-white dark:bg-darkCard p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                        <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 border-b pb-2 dark:border-gray-700"><i className="fa-solid fa-user-edit mr-2 text-blue-500"></i>Ubah Profil</h2>
+                        <form onSubmit={handleUpdateProfile} className="space-y-3 md:space-y-4">
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium mb-1">Nama Pengguna</label>
+                                <input type="text" value={name} onChange={e => setName(e.target.value)} required disabled={loading} className="w-full px-3 py-1.5 md:px-4 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base transition-colors disabled:opacity-50" />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium mb-1">Password Baru (Kosongkan bila sama)</label>
+                                <input type="password" value={pass} onChange={e => setPass(e.target.value)} disabled={loading} className="w-full px-3 py-1.5 md:px-4 md:py-2 bg-gray-50 dark:bg-slate-800 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base transition-colors disabled:opacity-50" />
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full md:w-auto px-5 py-2 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 shadow-lg text-sm md:text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                                {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : "Simpan Perubahan"}
+                            </button>
+                        </form>
+                    </div>
+
+                    <div className="bg-red-50 dark:bg-red-900/10 p-5 md:p-6 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/30">
+                        <h2 className="text-lg md:text-xl font-bold mb-1.5 md:mb-2 text-red-600 dark:text-red-400"><i className="fa-solid fa-triangle-exclamation mr-2"></i>Zona Berbahaya</h2>
+                        <p className="text-xs md:text-sm text-red-500 dark:text-red-300 mb-3 md:mb-4">Tindakan ini menghapus data langsung dari server Cloud dan tidak dapat dibatalkan.</p>
+                        <button onClick={handleClearHistory} disabled={loading} className="w-full md:w-auto px-5 py-2 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 shadow-lg text-sm md:text-base transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                            {loading ? <i className="fa-solid fa-spinner fa-spin"></i> : <><i className="fa-solid fa-trash"></i> Hapus Semua Riwayat</>}
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // ================= ADMIN VIEWS =================
+
+        const AdminApp = ({ user, logout, toggleTheme, theme, setBgImage, transDb, usersDb, targetsDb }) => {
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const tabs = [
+                { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
+                { id: 'users', label: 'Data User', icon: 'fa-users' },
+                { id: 'brankas', label: 'Brankas', icon: 'fa-vault' },
+                { id: 'pengaturan', label: 'Pengaturan', icon: 'fa-cog' }
+            ];
+
+            return (
+                <Layout user={user} logout={logout} toggleTheme={toggleTheme} theme={theme} activeTab={activeTab} setActiveTab={setActiveTab} tabs={tabs}>
+                    {activeTab === 'dashboard' && <AdminDashboard trans={transDb} users={usersDb} />}
+                    {activeTab === 'users' && <AdminUsers users={usersDb} trans={transDb} />}
+                    {activeTab === 'brankas' && <AdminBrankas trans={transDb} users={usersDb} />}
+                    {activeTab === 'pengaturan' && <AdminPengaturan setBgImage={setBgImage} />}
+                </Layout>
+            );
+        };
+
+        const AdminDashboard = ({ trans, users }) => {
+            const [filterDateStr, setFilterDateStr] = useState('');
+            const [filterName, setFilterName] = useState('');
+
+            const stats = useMemo(() => {
+                let saldo = 0, tab = 0, pinj = 0;
+                trans.filter(t => !t.isDeleted).forEach(t => {
+                    const a = parseInt(t.amount);
+                    if(t.category === 'Umum') { saldo += t.type === 'in' ? a : -a; }
+                    else if(t.category === 'Tabungan') { tab += t.type === 'out' ? a : -a; saldo += t.type === 'in' ? a : -a; }
+                    else if(t.category === 'Pinjaman') { pinj += t.type === 'out' ? a : -a; saldo += t.type === 'in' ? a : -a; }
+                });
+                return { u: users.length, saldo, tab, pinj };
+            }, [trans, users]);
+
+            const userMap = useMemo(() => { const m = {}; users.forEach(u => m[u.id] = u.username); return m; }, [users]);
+
+            const listData = useMemo(() => {
+                let data = trans.filter(t => !t.isDeleted);
+                if (filterDateStr) data = data.filter(t => t.date === filterDateStr);
+                if (filterName) {
+                    const search = filterName.toLowerCase();
+                    data = data.filter(t => (userMap[t.userId] || '').toLowerCase().includes(search));
+                }
+                return data.sort((a,b) => b.timestamp - a.timestamp);
+            }, [trans, filterDateStr, filterName, userMap]);
+
+            const total = useMemo(() => listData.reduce((acc, curr) => acc + (curr.type === 'in' ? parseInt(curr.amount) : -parseInt(curr.amount)), 0), [listData]);
+
+            return (
+                <div className="space-y-4 md:space-y-6">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                        {[ { l: 'Total User', v: stats.u, i: 'fa-users', c: 'text-blue-500' }, { l: 'Saldo Global', v: formatRp(stats.saldo), i: 'fa-wallet', c: 'text-emerald-500' }, { l: 'Tab Global', v: formatRp(stats.tab), i: 'fa-piggy-bank', c: 'text-emerald-500' }, { l: 'Pinj Global', v: formatRp(stats.pinj), i: 'fa-handshake', c: 'text-amber-500' }
+                        ].map((s,i) => (
+                            <div key={i} className="bg-white dark:bg-darkCard p-3 md:p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-3 md:gap-4">
+                                <div className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl flex items-center justify-center bg-gray-50 dark:bg-slate-800 ${s.c}`}>
+                                    <i className={`fa-solid ${s.i} text-lg md:text-2xl`}></i>
+                                </div>
+                                <div className="overflow-hidden">
+                                    <p className="text-[10px] md:text-xs text-gray-500 truncate">{s.l}</p>
+                                    <p className="font-bold text-xs sm:text-sm md:text-base lg:text-lg truncate">{s.v}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="bg-white dark:bg-darkCard rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                        <div className="p-3 md:p-4 border-b dark:border-gray-700 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-gray-50 dark:bg-slate-800/50">
+                            <h3 className="font-bold text-sm md:text-base">Semua Transaksi Global</h3>
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <input type="date" value={filterDateStr} onChange={e => setFilterDateStr(e.target.value)} className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-white dark:bg-slate-700 border rounded-lg outline-none w-1/2 md:w-auto transition-colors" />
+                                <input type="text" placeholder="Cari nama..." value={filterName} onChange={e => setFilterName(e.target.value)} className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-white dark:bg-slate-700 border rounded-lg outline-none w-1/2 md:w-auto transition-colors" />
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-col">
+                            {listData.length === 0 ? (
+                                <div className="p-8 text-center text-sm text-gray-500">Tidak ada data.</div>
+                            ) : listData.map(t => (
+                                <div key={t.id} className="flex justify-between items-center p-3 md:p-4 border-b last:border-0 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-1.5 md:gap-2 mb-0.5">
+                                            <span className="font-bold text-xs md:text-sm text-blue-600 dark:text-blue-400 truncate max-w-[100px] sm:max-w-[150px]">{userMap[t.userId] || 'Unknown'}</span>
+                                            <span className="text-[10px] md:text-xs text-gray-500 bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">{t.category}</span>
+                                        </div>
+                                        <span className="text-sm md:text-base font-semibold truncate max-w-[150px] sm:max-w-[250px]">{t.name}</span>
+                                        <span className="text-[10px] md:text-xs text-gray-500">{t.date}</span>
+                                    </div>
+                                    <span className={`font-bold text-sm md:text-base whitespace-nowrap ${t.type === 'in' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="bg-gray-50 dark:bg-slate-800/80 p-3 md:p-4 flex justify-between items-center font-bold border-t dark:border-gray-700 backdrop-blur-sm">
+                            <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">TOTAL FILTER:</span>
+                            <span className={`text-sm md:text-base ${total >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatRp(total)}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminUsers = ({ users, trans }) => {
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+            const [uName, setUName] = useState('');
+            const [uPass, setUPass] = useState('');
+            const [showP, setShowP] = useState({});
+            const [processing, setProcessing] = useState(false);
+
+            const togglePass = (id) => setShowP(p => ({...p, [id]: !p[id]}));
+
+            const handleAdd = async (e) => {
+                e.preventDefault();
+                if(users.find(u => u.username === uName)) return customAlert("Username sudah ada!");
+                setProcessing(true);
+                try {
+                    const newId = generateId();
+                    const { doc, setDoc } = window.FirebaseAPI;
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_users', newId), { id: newId, username: uName, password: uPass, role: 'user' });
+                    setIsModalOpen(false); setUName(''); setUPass('');
+                    customAlert("User berhasil ditambahkan ke Server!");
+                } catch(err) { 
+                    console.error(err);
+                    customAlert("Koneksi gagal: " + err.message); 
+                }
+                setProcessing(false);
+            };
+
+            const executeDelete = async () => {
+                if(deleteConfirmId) {
+                    setProcessing(true);
+                    try {
+                        const { doc, deleteDoc } = window.FirebaseAPI;
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_users', deleteConfirmId));
+                        
+                        const userTrans = trans.filter(t => t.userId === deleteConfirmId);
+                        for (let t of userTrans) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_trans', t.id)); }
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fm_targets', deleteConfirmId));
+                        
+                        customAlert("User dan seluruh datanya berhasil dihapus dari Cloud.");
+                        setDeleteConfirmId(null);
+                    } catch(err) { 
+                        console.error(err);
+                        customAlert("Gagal menghapus: " + err.message); 
+                    }
+                    setProcessing(false);
+                }
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-lg md:text-2xl font-bold">Data User</h2>
+                        <button onClick={() => setIsModalOpen(true)} className="px-3 py-1.5 md:px-4 md:py-2 bg-blue-500 text-white rounded-lg text-xs md:text-sm font-bold shadow-md hover:bg-blue-600 transition-colors">
+                            <i className="fa-solid fa-plus mr-1.5 md:mr-2"></i>Tambah User
+                        </button>
+                    </div>
+
+                    <div className="bg-white dark:bg-darkCard rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-gray-50 dark:bg-slate-800/50 text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                                    <tr>
+                                        <th className="p-3 md:p-4 w-12 md:w-16 text-center">No</th>
+                                        <th className="p-3 md:p-4">Nama</th>
+                                        <th className="p-3 md:p-4">Password</th>
+                                        <th className="p-3 md:p-4 text-center w-20 md:w-24">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.length === 0 ? (
+                                        <tr><td colSpan="4" className="p-8 text-center text-sm text-gray-500">Belum ada user.</td></tr>
+                                    ) : users.map((u, i) => (
+                                        <tr key={u.id} className="border-b last:border-0 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                                            <td className="p-3 md:p-4 text-center text-gray-500">{i + 1}</td>
+                                            <td className="p-3 md:p-4 font-bold">{u.username}</td>
+                                            <td className="p-3 md:p-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono text-[10px] md:text-xs bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded tracking-widest">{showP[u.id] ? u.password : '••••••••'}</span>
+                                                    <button onClick={() => togglePass(u.id)} className="text-gray-400 hover:text-gray-600 text-[10px] md:text-xs transition-colors"><i className={`fa-solid ${showP[u.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i></button>
+                                                </div>
+                                            </td>
+                                            <td className="p-3 md:p-4 text-center">
+                                                <button onClick={() => setDeleteConfirmId(u.id)} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-500 hover:text-white transition-colors inline-flex items-center justify-center shrink-0">
+                                                    <i className="fa-solid fa-trash text-[10px] md:text-xs"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <Modal isOpen={isModalOpen} onClose={() => !processing && setIsModalOpen(false)} title="Tambah User Baru">
+                        <form onSubmit={handleAdd} className="flex flex-col gap-3 md:gap-4 text-sm md:text-base">
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium mb-1">Username</label>
+                                <input type="text" value={uName} onChange={e => setUName(e.target.value)} required disabled={processing} className="w-full px-3 py-1.5 md:py-2 border rounded-lg dark:bg-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+                            </div>
+                            <div>
+                                <label className="block text-xs md:text-sm font-medium mb-1">Password</label>
+                                <input type="text" value={uPass} onChange={e => setUPass(e.target.value)} required disabled={processing} className="w-full px-3 py-1.5 md:py-2 border rounded-lg dark:bg-slate-800 outline-none focus:ring-2 focus:ring-blue-500 transition-colors" />
+                            </div>
+                            <button type="submit" disabled={processing} className="w-full py-2.5 bg-blue-500 text-white rounded-lg font-bold mt-2 hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center">
+                                {processing ? <i className="fa-solid fa-spinner fa-spin"></i> : "Simpan Ke Database"}
+                            </button>
+                        </form>
+                    </Modal>
+
+                    <Modal isOpen={!!deleteConfirmId} onClose={() => !processing && setDeleteConfirmId(null)} title="Konfirmasi Hapus Data">
+                        <div className="flex flex-col gap-4 text-center">
+                            <i className="fa-solid fa-triangle-exclamation text-4xl text-red-500"></i>
+                            <p className="text-sm md:text-base text-gray-600 dark:text-gray-300">Hapus user ini beserta seluruh riwayat transaksinya dari Cloud Server? <b>Tindakan ini permanen.</b></p>
+                            <div className="flex gap-3 mt-2">
+                                <button onClick={executeDelete} disabled={processing} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-colors shadow-lg flex items-center justify-center">
+                                    {processing ? <i className="fa-solid fa-spinner fa-spin"></i> : "Ya, Hapus"}
+                                </button>
+                                <button onClick={() => !processing && setDeleteConfirmId(null)} disabled={processing} className="flex-1 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-xl font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">Batal</button>
+                            </div>
+                        </div>
+                    </Modal>
+                </div>
+            );
+        };
+
+        const AdminBrankas = ({ trans, users }) => {
+            const [tab, setTab] = useState('Tabungan');
+            const [filterDateStr, setFilterDateStr] = useState('');
+            const [filterName, setFilterName] = useState('');
+
+            const userMap = useMemo(() => { const m = {}; users.forEach(u => m[u.id] = u.username); return m; }, [users]);
+
+            const globalTotal = useMemo(() => {
+                let sum = 0; trans.filter(t => !t.isDeleted && t.category === tab).forEach(t => sum += t.type === 'out' ? parseInt(t.amount) : -parseInt(t.amount));
+                return sum;
+            }, [trans, tab]);
+
+            const listData = useMemo(() => {
+                let data = trans.filter(t => !t.isDeleted && t.category === tab);
+                if (filterDateStr) data = data.filter(t => t.date === filterDateStr);
+                if (filterName) data = data.filter(t => (userMap[t.userId] || '').toLowerCase().includes(filterName.toLowerCase()));
+                return data.sort((a,b) => b.timestamp - a.timestamp);
+            }, [trans, tab, filterDateStr, filterName, userMap]);
+
+            const filteredTotal = useMemo(() => listData.reduce((acc, curr) => acc + (curr.type === 'out' ? parseInt(curr.amount) : -parseInt(curr.amount)), 0), [listData]);
+
+            return (
+                <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
+                    <div className="flex p-1 bg-gray-200 dark:bg-gray-800 rounded-xl w-full max-w-sm mx-auto">
+                        {['Tabungan', 'Pinjaman'].map(t => (
+                            <button key={t} onClick={() => setTab(t)} className={`flex-1 py-1.5 md:py-2 text-xs md:text-sm font-bold rounded-lg transition-all ${tab === t ? 'bg-white dark:bg-slate-700 shadow text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+                                {t} Global
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className={`p-5 md:p-6 rounded-3xl text-center text-white shadow-xl ${tab === 'Tabungan' ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-amber-500 to-orange-500'}`}>
+                        <p className="text-xs md:text-sm font-bold mb-1 opacity-80">Total {tab} Seluruh User</p>
+                        <h2 className="text-3xl md:text-4xl font-extrabold tracking-wider">{formatRp(globalTotal)}</h2>
+                    </div>
+
+                    <div className="bg-white dark:bg-darkCard rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                        <div className="p-3 md:p-4 border-b dark:border-gray-700 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-gray-50 dark:bg-slate-800/50">
+                            <h3 className="font-bold text-sm md:text-base">Riwayat {tab} Global</h3>
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <input type="date" value={filterDateStr} onChange={e => setFilterDateStr(e.target.value)} className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-white dark:bg-slate-700 border rounded-lg outline-none w-1/2 md:w-auto transition-colors" />
+                                <input type="text" placeholder="Cari nama..." value={filterName} onChange={e => setFilterName(e.target.value)} className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-white dark:bg-slate-700 border rounded-lg outline-none w-1/2 md:w-auto transition-colors" />
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-col">
+                            {listData.length === 0 ? (
+                                <div className="p-8 text-center text-sm text-gray-500">Tidak ada riwayat {tab}.</div>
+                            ) : listData.map((t, i) => (
+                                <div key={t.id} className="flex justify-between items-center p-3 md:p-4 border-b last:border-0 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
+                                    <div className="flex items-center gap-2.5 md:gap-4">
+                                        <div className="w-6 h-6 md:w-8 md:h-8 rounded-full flex shrink-0 items-center justify-center bg-gray-100 dark:bg-slate-700 text-gray-500 text-[10px] md:text-xs font-bold">
+                                            {i + 1}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-xs md:text-sm text-blue-600 dark:text-blue-400 truncate max-w-[120px] sm:max-w-[200px]">{userMap[t.userId] || 'Unknown'}</span>
+                                            <span className="font-semibold text-sm md:text-base truncate max-w-[150px] sm:max-w-[250px]">{t.name}</span>
+                                            <span className="text-[10px] md:text-xs text-gray-500">{t.date}</span>
+                                        </div>
+                                    </div>
+                                    <span className={`font-bold text-sm md:text-base whitespace-nowrap ${t.type === 'out' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {t.type === 'out' ? '+' : '-'}{formatRp(t.amount)}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="bg-gray-50 dark:bg-slate-800/80 p-3 md:p-4 flex justify-between items-center font-bold border-t dark:border-gray-700 backdrop-blur-sm">
+                            <span className="text-xs md:text-sm text-gray-600 dark:text-gray-300">TOTAL FILTER:</span>
+                            <span className={`text-sm md:text-base ${filteredTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatRp(filteredTotal)}</span>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminPengaturan = ({ setBgImage }) => {
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    compressImage(file, (compressedBase64) => {
+                        try { localStorage.setItem('fm_bg', compressedBase64); setBgImage(compressedBase64); customAlert("Latar belakang diubah!"); } 
+                        catch (err) { customAlert("Gagal menyimpan gambar. Ukuran terlalu besar."); }
+                    });
+                }
+            };
+            const handleRemoveBg = () => { localStorage.removeItem('fm_bg'); setBgImage(''); customAlert("Latar belakang dikembalikan ke bawaan."); };
+
+            return (
+                <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
+                    <div className="bg-white dark:bg-darkCard p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                        <h2 className="text-lg md:text-xl font-bold mb-4 md:mb-6 border-b pb-2 dark:border-gray-700"><i className="fa-solid fa-image mr-2 text-blue-500"></i>Latar Belakang</h2>
+                        <p className="text-xs md:text-sm text-gray-500 mb-4 md:mb-5">Pilih gambar untuk latar belakang (Penyimpanan gambar tetap di browser perangkat/lokal).</p>
+                        
+                        <div className="flex flex-col gap-3 md:gap-4">
+                            <label className="flex items-center justify-center w-full h-24 md:h-32 px-4 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-xl cursor-pointer hover:border-blue-400 bg-gray-50 dark:bg-slate-800 transition-colors">
+                                <span className="flex items-center gap-2">
+                                    <i className="fa-solid fa-upload text-gray-400 text-lg md:text-xl"></i>
+                                    <span className="font-medium text-xs md:text-sm text-gray-600 dark:text-gray-300">Pilih Gambar</span>
+                                </span>
+                                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                            </label>
+                            
+                            <button onClick={handleRemoveBg} className="w-full py-2 text-xs md:text-sm bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 dark:bg-red-900/30 transition-colors">
+                                <i className="fa-solid fa-trash mr-1.5 md:mr-2"></i>Hapus Latar Belakang
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const startApp = () => {
+            const { initializeApp, getAuth, getFirestore } = window.FirebaseAPI;
+            // [!] GANTI DENGAN CONFIG FIREBASE ANDA SENDIRI JIKA DIHOSTING DI LUAR PREVIEW INI
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "AIzaSyCT0OCIQi-5XYGQnIhb13UWQQ3ZzmgjZ28",
+                authDomain: "family-money-562cd.firebaseapp.com",
+                projectId: "family-money-562cd",
+                storageBucket: "family-money-562cd.firebasestorage.app",
+                messagingSenderId: "413036725277",
+                appId: "1:413036725277:web:034922ef1112e0f67d72f4"
+            };
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'family-money-app';
+
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<App />);
+        };
+
+        if (window.FirebaseAPI) { startApp(); } 
+        else { window.addEventListener('firebase-loaded', startApp); }
+
+    </script>
+</body>
+</html>
