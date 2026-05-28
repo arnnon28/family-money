@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Family Money - Cloud Sync</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#121212',
+                        darker: '#0a0a0a',
+                        primary: '#10b981',
+                    },
+                    animation: {
+                        'shake': 'shake 0.82s cubic-bezier(.36,.07,.19,.97) both',
+                        'spin-slow': 'spin 3s linear infinite',
+                    },
+                    keyframes: {
+                        shake: {
+                            '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- jsPDF for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow-x: hidden; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .dark .glass { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .app-bg { background-size: cover; background-position: center; background-attachment: fixed; transition: all 0.3s; }
+    </style>
+
+    <!-- FIREBASE MODULES PENGHUBUNG -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        window.FirebaseLib = {
+            initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged,
+            getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc
+        };
+        window.dispatchEvent(new Event('firebase-loaded'));
+    </script>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-darker dark:text-gray-100 transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ⬇️ UNTUK PUBLISH KE GITHUB PAGES: ISI KONFIGURASI FIREBASE ANDA DI SINI ⬇️
+        // Contoh: const CUSTOM_FIREBASE_CONFIG = { apiKey: "AIza...", authDomain: "...", projectId: "...", ... };
+        const CUSTOM_FIREBASE_CONFIG = null; 
+        // ⬆️ ---------------------------------------------------------------------- ⬆️
+
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- UTILS ---
+        const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+        const parseRpInput = (str) => parseInt(str.replace(/[^0-9]/g, '')) || 0;
+
+        // --- CORE APPLICATION ---
+        const App = () => {
+            const [view, setView] = useState('splash');
+            const [currentUser, setCurrentUser] = useState(null);
+            const [isDark, setIsDark] = useState(true);
+
+            // Cloud Data States
+            const [firebaseApi, setFirebaseApi] = useState(window.FirebaseLib);
+            const [userAuth, setUserAuth] = useState(null);
+            const [dbInstances, setDbInstances] = useState(null);
+            const [cloudData, setCloudData] = useState({ users: [], transactions: [], targets: [], settings: [] });
+            const [isCloudReady, setIsCloudReady] = useState(false);
+            const [cloudError, setCloudError] = useState('');
+
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'family-money-public';
+
+            // Ensure Dark Mode applied
+            useEffect(() => {
+                const root = document.documentElement;
+                if (isDark) root.classList.add('dark');
+                else root.classList.remove('dark');
+            }, [isDark]);
+
+            // Ensure Firebase Lib is Loaded
+            useEffect(() => {
+                const handleLoad = () => setFirebaseApi(window.FirebaseLib);
+                if (window.FirebaseLib) setFirebaseApi(window.FirebaseLib);
+                else window.addEventListener('firebase-loaded', handleLoad);
+                return () => window.removeEventListener('firebase-loaded', handleLoad);
+            }, []);
+
+            // Initialize Firebase & Auth
+            useEffect(() => {
+                if (!firebaseApi) return;
+
+                const initAuth = async () => {
+                    try {
+                        let config;
+                        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                            config = JSON.parse(__firebase_config); // Canvas injected
+                        } else if (CUSTOM_FIREBASE_CONFIG) {
+                            config = CUSTOM_FIREBASE_CONFIG; // Github Pages mode
+                        } else {
+                            setCloudError("KONFIGURASI HILANG");
+                            return;
+                        }
+
+                        const app = firebaseApi.initializeApp(config);
+                        const auth = firebaseApi.getAuth(app);
+                        const db = firebaseApi.getFirestore(app);
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await firebaseApi.signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await firebaseApi.signInAnonymously(auth);
+                        }
+
+                        const unsubscribe = firebaseApi.onAuthStateChanged(auth, (u) => {
+                            setUserAuth(u);
+                            if (u) setDbInstances({ db, auth });
+                        });
+                        return () => unsubscribe();
+                    } catch (e) {
+                        console.error("Auth error", e);
+                        setCloudError("GAGAL KONEKSI CLOUD");
+                    }
+                };
+                initAuth();
+            }, [firebaseApi]);
+
+            // Sync Data with Firestore realtime listeners
+            useEffect(() => {
+                if (!userAuth || !dbInstances || !firebaseApi) return;
+                const { db } = dbInstances;
+                const collections = ['users', 'transactions', 'targets', 'settings'];
+                const unsubscribers = [];
+
+                collections.forEach(colName => {
+                    const colRef = firebaseApi.collection(db, 'artifacts', appId, 'public', 'data', colName);
+                    const unsub = firebaseApi.onSnapshot(colRef, (snapshot) => {
+                        const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        setCloudData(prev => ({ ...prev, [colName]: data }));
+                    }, (error) => {
+                        console.error(`Error Syncing ${colName}:`, error);
+                    });
+                    unsubscribers.push(unsub);
+                });
+
+                setIsCloudReady(true);
+                return () => unsubscribers.forEach(fn => fn());
+            }, [userAuth, dbInstances, firebaseApi]);
+
+            // Mutation Functions
+            const saveToCloud = async (colName, id, dataObj) => {
+                if (!userAuth || !dbInstances || !firebaseApi) return;
+                const docRef = firebaseApi.doc(dbInstances.db, 'artifacts', appId, 'public', 'data', colName, id);
+                await firebaseApi.setDoc(docRef, dataObj);
+            };
+
+            const deleteFromCloud = async (colName, id) => {
+                if (!userAuth || !dbInstances || !firebaseApi) return;
+                const docRef = firebaseApi.doc(dbInstances.db, 'artifacts', appId, 'public', 'data', colName, id);
+                await firebaseApi.deleteDoc(docRef);
+            };
+
+            // Calculate Dynamic Background
+            const globalBg = useMemo(() => {
+                return cloudData.settings.find(s => s.id === 'global')?.bgImage || '';
+            }, [cloudData.settings]);
+
+            const bgStyle = globalBg ? { backgroundImage: `url(${globalBg})` } : {};
+
+            // Render Loading/Error States
+            if (cloudError) return <CloudErrorUI error={cloudError} />;
+            if (!isCloudReady) return <LoadingUI />;
+
+            return (
+                <div className={`min-h-screen w-full app-bg ${!globalBg && 'dark:bg-darker bg-gray-50'}`} style={bgStyle}>
+                    <div className={`${globalBg ? 'bg-white/80 dark:bg-black/80 min-h-screen backdrop-blur-sm' : 'min-h-screen'}`}>
+                        {view === 'splash' && <SplashScreen setView={setView} isDark={isDark} setIsDark={setIsDark} />}
+                        {view === 'userLogin' && <UserLogin setView={setView} setCurrentUser={setCurrentUser} cloudData={cloudData} saveToCloud={saveToCloud} />}
+                        {view === 'adminLogin' && <AdminLogin setView={setView} />}
+                        {view === 'userDash' && <UserDashboard currentUser={currentUser} setView={setView} isDark={isDark} setIsDark={setIsDark} cloudData={cloudData} saveToCloud={saveToCloud} deleteFromCloud={deleteFromCloud} />}
+                        {view === 'adminDash' && <AdminDashboard setView={setView} isDark={isDark} setIsDark={setIsDark} cloudData={cloudData} saveToCloud={saveToCloud} deleteFromCloud={deleteFromCloud} />}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- SUB COMPONENTS ---
+
+        const LoadingUI = () => (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-darker text-gray-800 dark:text-gray-200">
+                <i className="fas fa-cloud-arrow-down text-6xl text-green-500 mb-6 animate-bounce"></i>
+                <h2 className="text-xl font-bold animate-pulse">Menghubungkan ke Cloud...</h2>
+                <p className="text-sm text-gray-500 mt-2">Menyiapkan database waktu-nyata untuk pengalaman cross-device</p>
+            </div>
+        );
+
+        const CloudErrorUI = ({ error }) => (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-darker p-6 text-gray-800 dark:text-gray-200">
+                <div className="glass p-8 rounded-3xl max-w-md w-full text-center border-t-4 border-red-500 shadow-2xl">
+                    <i className="fas fa-triangle-exclamation text-6xl text-red-500 mb-4 animate-shake"></i>
+                    <h2 className="text-2xl font-bold mb-2">Cloud Storage Terputus</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                        {error === "KONFIGURASI HILANG" 
+                            ? "Aplikasi gagal berjalan karena Konfigurasi Firebase tidak ditemukan. Jika Anda menghosting ini di GitHub Pages, pastikan telah mengisi variabel CUSTOM_FIREBASE_CONFIG di dalam source code." 
+                            : "Terjadi masalah saat mencoba menghubungi server. Periksa koneksi internet Anda."}
+                    </p>
+                </div>
+            </div>
+        );
+
+        const SplashScreen = ({ setView, isDark, setIsDark }) => {
+            const quotes = ["Keuangan sehat, keluarga bahagia.", "Rencanakan masa depanmu dari sekarang.", "Hemat pangkal kaya, rajin pangkal pandai.", "Sedikit demi sedikit lama-lama menjadi bukit."];
+            const quote = useMemo(() => quotes[Math.floor(Math.random() * quotes.length)], []);
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-4 relative">
+                    <div className="absolute top-4 right-4 flex space-x-4">
+                        <button onClick={() => setIsDark(!isDark)} className="p-2 rounded-full glass hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                            <i className={`fas ${isDark ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-600'}`}></i>
+                        </button>
+                        <button onClick={() => setView('adminLogin')} className="p-2 rounded-full glass hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                            <i className="fas fa-key text-red-500"></i>
+                        </button>
+                    </div>
+                    
+                    <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-40 h-40 object-contain animate-pulse mb-6 drop-shadow-2xl" />
+                    <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500 mb-2">Family Money</h1>
+                    <p className="italic text-gray-600 dark:text-gray-400 mb-10 text-center max-w-sm">"{quote}"</p>
+                    
+                    <button onClick={() => setView('userLogin')} className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition">
+                        Masuk / Daftar
+                    </button>
+                </div>
+            );
+        };
+
+        const UserLogin = ({ setView, setCurrentUser, cloudData, saveToCloud }) => {
+            const [isRegister, setIsRegister] = useState(false);
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [showPwd, setShowPwd] = useState(false);
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+                
+                if (isRegister) {
+                    if (cloudData.users.find(u => u.username === username)) {
+                        setError('Username sudah digunakan!');
+                        setLoading(false);
+                        return;
+                    }
+                    const newId = generateId();
+                    const newUser = { username, password };
+                    await saveToCloud('users', newId, newUser);
+                    setCurrentUser({ ...newUser, id: newId });
+                    setView('userDash');
+                } else {
+                    const user = cloudData.users.find(u => u.username === username && u.password === password);
+                    if (user) {
+                        setCurrentUser(user);
+                        setView('userDash');
+                    } else {
+                        setError('Username atau password salah!');
+                    }
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-4">
+                    <div className="glass p-8 rounded-2xl w-full max-w-md shadow-2xl relative overflow-hidden">
+                        {loading && <div className="absolute inset-0 bg-white/50 dark:bg-black/50 z-10 flex items-center justify-center"><i className="fas fa-circle-notch animate-spin text-3xl text-green-500"></i></div>}
+                        
+                        <div className="flex justify-between items-center mb-6">
+                            <button onClick={() => setView('splash')} className="text-gray-500 hover:text-gray-800 dark:hover:text-white"><i className="fas fa-arrow-left"></i></button>
+                            <h2 className="text-2xl font-bold">{isRegister ? 'Daftar Akun' : 'Masuk User'}</h2>
+                            <div className="w-4"></div>
+                        </div>
+                        {error && <div className="bg-red-500 text-white p-3 rounded mb-4 text-sm text-center">{error}</div>}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm mb-1 text-gray-600 dark:text-gray-300">Username</label>
+                                <input required type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 rounded-lg bg-gray-100 dark:bg-darker border border-gray-300 dark:border-gray-700 focus:outline-none focus:border-green-500" />
+                            </div>
+                            <div className="relative">
+                                <label className="block text-sm mb-1 text-gray-600 dark:text-gray-300">Password</label>
+                                <input required type={showPwd ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 rounded-lg bg-gray-100 dark:bg-darker border border-gray-300 dark:border-gray-700 focus:outline-none focus:border-green-500" />
+                                <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-9 text-gray-500">
+                                    <i className={`fas ${showPwd ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                </button>
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold transition">
+                                {isRegister ? 'Daftar Sekarang' : 'Masuk'}
+                            </button>
+                        </form>
+                        <p className="mt-4 text-center text-sm">
+                            {isRegister ? 'Sudah punya akun? ' : 'Belum punya akun? '}
+                            <button type="button" onClick={() => {setIsRegister(!isRegister); setError('');}} className="text-green-500 font-bold underline">
+                                {isRegister ? 'Masuk' : 'Daftar'}
+                            </button>
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminLogin = ({ setView }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (username === 'arnnon' && password === 'andri123') setView('adminDash');
+                else setError('Kredensial Admin tidak valid!');
+            };
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-4">
+                    <div className="glass p-8 rounded-2xl w-full max-w-md shadow-2xl border-t-4 border-red-500">
+                        <div className="flex justify-between items-center mb-6">
+                            <button onClick={() => setView('splash')} className="text-gray-500 hover:text-gray-800 dark:hover:text-white"><i className="fas fa-arrow-left"></i></button>
+                            <h2 className="text-2xl font-bold text-red-500">Mode Admin</h2>
+                            <i className="fas fa-user-shield text-red-500"></i>
+                        </div>
+                        {error && <div className="bg-red-500 text-white p-3 rounded mb-4 text-sm text-center">{error}</div>}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm mb-1">Username Admin</label>
+                                <input required type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-3 rounded-lg bg-gray-100 dark:bg-darker border border-gray-300 dark:border-gray-700 focus:outline-none focus:border-red-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1">Password</label>
+                                <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 rounded-lg bg-gray-100 dark:bg-darker border border-gray-300 dark:border-gray-700 focus:outline-none focus:border-red-500" />
+                            </div>
+                            <button type="submit" className="w-full py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold transition">
+                                Login Admin
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- DASHBOARD USER ---
+        const UserDashboard = ({ currentUser, setView, isDark, setIsDark, cloudData, saveToCloud, deleteFromCloud }) => {
+            const [activeTab, setActiveTab] = useState('beranda');
+
+            const Header = () => (
+                <div className="glass sticky top-0 z-50 px-4 py-3 flex justify-between items-center shadow-md">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-green-400 to-blue-500 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                            {currentUser.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Selamat Datang,</p>
+                            <p className="font-bold text-sm md:text-base leading-tight">{currentUser.username}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <button onClick={() => setIsDark(!isDark)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                            <i className={`fas ${isDark ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-600'}`}></i>
+                        </button>
+                        <button onClick={() => setView('splash')} className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition">
+                            <i className="fas fa-sign-out-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const tabs = [
+                { id: 'beranda', icon: 'fa-home', label: 'Beranda' },
+                { id: 'riwayat', icon: 'fa-history', label: 'Riwayat' },
+                { id: 'target', icon: 'fa-bullseye', label: 'Target' },
+                { id: 'brankas', icon: 'fa-vault', label: 'Brankas' },
+                { id: 'pengaturan', icon: 'fa-cog', label: 'Pengaturan' }
+            ];
+
+            return (
+                <div className="flex flex-col md:flex-row min-h-screen">
+                    {/* Mobile Nav */}
+                    <div className="md:hidden flex-col w-full sticky top-0 z-40">
+                        <Header />
+                        <div className="glass flex overflow-x-auto hide-scrollbar border-b border-gray-200 dark:border-gray-700">
+                            {tabs.map(t => (
+                                <button key={t.id} onClick={() => setActiveTab(t.id)} 
+                                    className={`flex-1 min-w-[80px] py-3 text-xs flex flex-col items-center gap-1 transition-colors ${activeTab === t.id ? 'text-green-500 border-b-2 border-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-500 hover:text-green-400'}`}>
+                                    <i className={`fas ${t.icon} text-lg`}></i>
+                                    <span>{t.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Desktop Sidebar */}
+                    <div className="hidden md:flex flex-col w-64 glass shadow-xl border-r border-gray-200 dark:border-gray-800 z-40 relative">
+                        <div className="p-6 text-center border-b border-gray-200 dark:border-gray-700">
+                            <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-20 h-20 mx-auto mb-2 object-contain" />
+                            <h2 className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">Family Money</h2>
+                        </div>
+                        <div className="flex-1 py-4 flex flex-col gap-2 px-4">
+                            {tabs.map(t => (
+                                <button key={t.id} onClick={() => setActiveTab(t.id)} 
+                                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === t.id ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md' : 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                    <i className={`fas ${t.icon} w-5 text-center`}></i>
+                                    <span className="font-medium">{t.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Main Area */}
+                    <div className="flex-1 flex flex-col max-w-full relative h-screen overflow-hidden">
+                        <div className="hidden md:block"> <Header /> </div>
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 hide-scrollbar">
+                            <div className="max-w-4xl mx-auto pb-20 md:pb-0">
+                                {activeTab === 'beranda' && <TabBeranda userId={currentUser.id} cloudData={cloudData} saveToCloud={saveToCloud} />}
+                                {activeTab === 'riwayat' && <TabRiwayat userId={currentUser.id} cloudData={cloudData} />}
+                                {activeTab === 'target' && <TabTarget userId={currentUser.id} cloudData={cloudData} saveToCloud={saveToCloud} />}
+                                {activeTab === 'brankas' && <TabBrankas userId={currentUser.id} cloudData={cloudData} saveToCloud={saveToCloud} />}
+                                {activeTab === 'pengaturan' && <TabPengaturan user={currentUser} setView={setView} cloudData={cloudData} saveToCloud={saveToCloud} deleteFromCloud={deleteFromCloud} />}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TabBeranda = ({ userId, cloudData, saveToCloud }) => {
+            const [showModal, setShowModal] = useState(null); 
+            
+            const rawTxs = useMemo(() => cloudData.transactions.filter(t => t.userId === userId && !t.deleted), [cloudData.transactions, userId]);
+            
+            const calc = useMemo(() => {
+                let saldo = 0, inTotal = 0, outTotal = 0;
+                rawTxs.forEach(t => {
+                    if (t.category === 'Umum') {
+                        if (t.type === 'in') { saldo += t.amount; inTotal += t.amount; }
+                        if (t.type === 'out') { saldo -= t.amount; outTotal += t.amount; }
+                    } else if (t.category === 'Tabungan' || t.category === 'Pinjaman') {
+                        if (t.type === 'in') saldo += t.amount; 
+                        if (t.type === 'out') saldo -= t.amount; 
+                    }
+                });
+                return { saldo, inTotal, outTotal };
+            }, [rawTxs]);
+
+            const recentTxs = useMemo(() => [...rawTxs].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5), [rawTxs]);
+            const isWarning = calc.outTotal > (0.8 * calc.inTotal) && calc.inTotal > 0;
+
+            return (
+                <div className="space-y-6">
+                    <div className={`relative p-6 rounded-3xl text-white shadow-xl overflow-hidden transition-all duration-500 ${calc.saldo >= 0 ? 'bg-gradient-to-br from-green-500 to-emerald-700' : 'bg-gradient-to-br from-red-500 to-rose-700 shadow-[0_0_20px_rgba(239,68,68,0.6)]'}`}>
+                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-white opacity-10"></div>
+                        <div className="absolute bottom-0 left-0 -ml-8 -mb-8 w-24 h-24 rounded-full bg-black opacity-10"></div>
+                        <h3 className="text-sm font-medium opacity-80 mb-1 z-10 relative">Total Saldo Aktif</h3>
+                        <div className="text-4xl md:text-5xl font-bold tracking-tight z-10 relative mb-6">
+                            {formatRp(calc.saldo)}
+                        </div>
+                        <div className="flex justify-between border-t border-white/20 pt-4 z-10 relative text-sm md:text-base">
+                            <div>
+                                <p className="opacity-70 text-xs">Pemasukan (Umum)</p>
+                                <p className="font-semibold text-green-200"><i className="fas fa-arrow-down mr-1"></i>{formatRp(calc.inTotal)}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="opacity-70 text-xs">Pengeluaran (Umum)</p>
+                                <p className="font-semibold text-red-200"><i className="fas fa-arrow-up mr-1"></i>{formatRp(calc.outTotal)}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {isWarning && (
+                        <div className="bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500 p-4 rounded shadow animate-shake flex items-start gap-3">
+                            <i className="fas fa-robot text-red-500 text-xl mt-1"></i>
+                            <div>
+                                <h4 className="font-bold text-red-700 dark:text-red-400">AI Coach Warning!</h4>
+                                <p className="text-sm text-red-600 dark:text-red-300">Pengeluaran umum Anda sudah melebihi 80% dari pemasukan. Kurangi pengeluaran yang tidak perlu!</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <button onClick={() => setShowModal('in')} className="glass py-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 transition transform hover:scale-[1.02]">
+                            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-xl shadow-inner"><i className="fas fa-plus"></i></div>
+                            <span className="font-bold text-sm">Pemasukan</span>
+                        </button>
+                        <button onClick={() => setShowModal('out')} className="glass py-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition transform hover:scale-[1.02]">
+                            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center text-xl shadow-inner"><i className="fas fa-minus"></i></div>
+                            <span className="font-bold text-sm">Pengeluaran</span>
+                        </button>
+                    </div>
+
+                    <MiniTarget userId={userId} cloudData={cloudData} />
+
+                    <div className="glass rounded-2xl p-4 md:p-6 shadow-sm">
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><i className="fas fa-clock text-blue-500"></i> Transaksi Terakhir</h3>
+                        {recentTxs.length === 0 ? (
+                            <p className="text-center text-gray-500 text-sm py-4">Belum ada transaksi.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {recentTxs.map(t => (
+                                    <div key={t.id} className="flex justify-between items-center p-3 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${t.type === 'in' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                <i className={`fas ${t.category === 'Tabungan' ? 'fa-piggy-bank' : t.category === 'Pinjaman' ? 'fa-hand-holding-dollar' : t.type==='in'?'fa-arrow-down':'fa-arrow-up'}`}></i>
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-sm">{t.name}</p>
+                                                <p className="text-xs text-gray-500">{t.date} • {t.category}</p>
+                                            </div>
+                                        </div>
+                                        <p className={`font-bold ${t.type === 'in' ? 'text-green-500' : 'text-red-500'}`}>
+                                            {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {showModal && <TransactionModal type={showModal} onClose={() => setShowModal(null)} userId={userId} saveToCloud={saveToCloud} />}
+                </div>
+            );
+        };
+
+        const MiniTarget = ({ userId, cloudData }) => {
+            const targets = useMemo(() => cloudData.targets.filter(t => t.id === userId), [cloudData.targets, userId]);
+            const target = targets.length > 0 ? targets[0] : null;
+            
+            const rawTxs = useMemo(() => cloudData.transactions.filter(t => t.userId === userId && !t.deleted && t.category === 'Tabungan'), [cloudData.transactions, userId]);
+            const tabungan = useMemo(() => {
+                let tTotal = 0;
+                rawTxs.forEach(t => {
+                    if (t.type === 'out') tTotal += t.amount; 
+                    if (t.type === 'in') tTotal -= t.amount;  
+                });
+                return tTotal;
+            }, [rawTxs]);
+
+            if(!target) return null;
+            const progress = Math.min(100, Math.max(0, (tabungan / target.price) * 100)) || 0;
+
+            return (
+                <div className="glass p-4 rounded-2xl">
+                    <div className="flex justify-between text-sm mb-2">
+                        <span className="font-bold"><i className="fas fa-bullseye text-orange-500 mr-2"></i>Target: {target.name}</span>
+                        <span className="font-bold text-green-500">{progress.toFixed(1)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                        <div className="bg-gradient-to-r from-orange-400 to-red-500 h-3 rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                    </div>
+                </div>
+            );
+        }
+
+        const TransactionModal = ({ type, onClose, userId, saveToCloud }) => {
+            const [amountStr, setAmountStr] = useState('');
+            const [name, setName] = useState('');
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [category, setCategory] = useState('Umum');
+
+            const handleAmountChange = (e) => {
+                const val = parseRpInput(e.target.value);
+                setAmountStr(val ? formatRp(val) : '');
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const amount = parseRpInput(amountStr);
+                if (amount <= 0 || !name || !date) return;
+                
+                const newId = generateId();
+                const newTx = { userId, type, category, name, amount, date, deleted: false };
+                await saveToCloud('transactions', newId, newTx);
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-darker rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-[shake_0.3s_ease-in-out]">
+                        <div className={`p-4 text-white text-center font-bold text-lg ${type === 'in' ? 'bg-green-500' : 'bg-red-500'}`}>
+                            Input {type === 'in' ? 'Pemasukan' : 'Pengeluaran'}
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm mb-1 text-gray-500">Kategori</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {['Umum', 'Tabungan', 'Pinjaman'].map(c => (
+                                        <button type="button" key={c} onClick={() => setCategory(c)}
+                                            className={`py-2 text-xs font-bold rounded-lg border transition ${category === c ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                                            {c}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-[10px] mt-1 text-gray-400 italic">
+                                    *Tabungan/Pinjaman akan berdampak pada Saldo Brankas.
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-gray-500">Nominal (Rp)</label>
+                                <input required type="text" value={amountStr} onChange={handleAmountChange} placeholder="Rp 0" 
+                                    className="w-full p-3 text-xl font-bold rounded-xl bg-gray-100 dark:bg-dark border-none focus:ring-2 focus:ring-blue-500 outline-none" />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-gray-500">Nama Transaksi</label>
+                                <input required type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Misal: Gaji Bulan Ini" 
+                                    className="w-full p-3 rounded-xl bg-gray-100 dark:bg-dark border-none focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-sm mb-1 text-gray-500">Tanggal</label>
+                                <input required type="date" value={date} onChange={e=>setDate(e.target.value)} 
+                                    className="w-full p-3 rounded-xl bg-gray-100 dark:bg-dark border-none focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:[color-scheme:dark]" />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button type="button" onClick={onClose} className="flex-1 py-3 bg-gray-200 dark:bg-gray-800 rounded-xl font-bold text-gray-600 dark:text-gray-300">Batal</button>
+                                <button type="submit" className={`flex-1 py-3 rounded-xl font-bold text-white ${type === 'in' ? 'bg-green-500' : 'bg-red-500'}`}>Simpan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const TabRiwayat = ({ userId, cloudData }) => {
+            const [filterTab, setFilterTab] = useState('Semua');
+            const [searchName, setSearchName] = useState('');
+            const [filterDate, setFilterDate] = useState('');
+
+            const rawTxs = useMemo(() => cloudData.transactions.filter(t => t.userId === userId && !t.deleted), [cloudData.transactions, userId]);
+            
+            const filteredTxs = useMemo(() => {
+                return rawTxs.filter(t => {
+                    const matchTab = filterTab === 'Semua' ? true : (filterTab === 'Pemasukan' ? t.type === 'in' : t.type === 'out');
+                    const matchName = t.name.toLowerCase().includes(searchName.toLowerCase());
+                    const matchDate = filterDate ? t.date === filterDate : true;
+                    return matchTab && matchName && matchDate;
+                }).sort((a,b) => new Date(b.date) - new Date(a.date));
+            }, [rawTxs, filterTab, searchName, filterDate]);
+
+            const totalFiltered = useMemo(() => {
+                return filteredTxs.reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0);
+            }, [filteredTxs]);
+
+            const downloadPDF = () => {
+                const doc = new window.jspdf.jsPDF();
+                doc.text("Laporan Riwayat Transaksi - Family Money", 14, 15);
+                doc.setFontSize(10);
+                doc.text(`Filter: ${filterTab} | Periode: ${filterDate || 'Semua'}`, 14, 22);
+                
+                const tableData = filteredTxs.map((t, i) => [
+                    i + 1, t.name, t.category, t.date, t.type === 'in' ? 'Pemasukan' : 'Pengeluaran', formatRp(t.amount)
+                ]);
+
+                doc.autoTable({
+                    startY: 28, head: [['No', 'Nama Transaksi', 'Kategori', 'Tanggal', 'Jenis', 'Jumlah']],
+                    body: tableData, foot: [['', '', '', '', 'Total Akumulasi:', formatRp(totalFiltered)]],
+                    theme: 'grid', styles: { fontSize: 8 }, headStyles: { fillColor: [16, 185, 129] }
+                });
+                doc.save('Riwayat_Family_Money.pdf');
+            };
+
+            return (
+                <div className="space-y-4">
+                    <h2 className="text-2xl font-bold mb-4">Riwayat Transaksi</h2>
+                    
+                    <div className="glass p-4 rounded-xl space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                            {['Semua', 'Pemasukan', 'Pengeluaran'].map(tab => (
+                                <button key={tab} onClick={() => setFilterTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${filterTab === tab ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex flex-col md:flex-row gap-3">
+                            <input type="text" placeholder="Cari nama transaksi..." value={searchName} onChange={e=>setSearchName(e.target.value)} 
+                                className="flex-1 p-2 rounded-lg bg-white dark:bg-dark border border-gray-300 dark:border-gray-600 outline-none focus:border-blue-500 text-sm" />
+                            <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} 
+                                className="p-2 rounded-lg bg-white dark:bg-dark border border-gray-300 dark:border-gray-600 outline-none focus:border-blue-500 text-sm dark:[color-scheme:dark]" />
+                            <button onClick={downloadPDF} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center gap-2 justify-center">
+                                <i className="fas fa-file-pdf"></i> Download PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="glass rounded-xl overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr className="bg-gray-100 dark:bg-gray-800/50 text-gray-500 text-xs uppercase tracking-wider border-b dark:border-gray-700">
+                                        <th className="p-4">Ikon</th>
+                                        <th className="p-4">Nama Transaksi</th>
+                                        <th className="p-4">Kategori</th>
+                                        <th className="p-4">Tanggal</th>
+                                        <th className="p-4 text-right">Jumlah</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTxs.length === 0 && (
+                                        <tr><td colSpan="5" className="p-6 text-center text-gray-500 text-sm">Tidak ada data ditemukan.</td></tr>
+                                    )}
+                                    {filteredTxs.map(t => (
+                                        <tr key={t.id} className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition">
+                                            <td className="p-4">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs ${t.type === 'in' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                    <i className={`fas ${t.category === 'Tabungan' ? 'fa-piggy-bank' : t.category === 'Pinjaman' ? 'fa-hand-holding-dollar' : t.type==='in'?'fa-arrow-down':'fa-arrow-up'}`}></i>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-sm font-semibold">{t.name}</td>
+                                            <td className="p-4 text-xs text-gray-500"><span className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">{t.category}</span></td>
+                                            <td className="p-4 text-sm text-gray-500">{t.date}</td>
+                                            <td className={`p-4 text-sm font-bold text-right ${t.type === 'in' ? 'text-green-500' : 'text-red-500'}`}>
+                                                {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-gray-50 dark:bg-gray-800/80 font-bold">
+                                        <td colSpan="4" className="p-4 text-right">Jumlah Total:</td>
+                                        <td className={`p-4 text-right ${totalFiltered >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {formatRp(totalFiltered)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TabTarget = ({ userId, cloudData, saveToCloud }) => {
+            const target = useMemo(() => cloudData.targets.find(t => t.id === userId) || { name: 'Beli Rumah', price: 500000000 }, [cloudData.targets, userId]);
+            
+            const [isEditing, setIsEditing] = useState(!cloudData.targets.some(t => t.id === userId));
+            const [name, setName] = useState(target.name);
+            const [priceStr, setPriceStr] = useState(formatRp(target.price));
+
+            const rawTxs = useMemo(() => cloudData.transactions.filter(t => t.userId === userId && !t.deleted && t.category === 'Tabungan'), [cloudData.transactions, userId]);
+            
+            const tabungan = useMemo(() => {
+                let tTotal = 0;
+                rawTxs.forEach(t => {
+                    if (t.type === 'out') tTotal += t.amount; 
+                    if (t.type === 'in') tTotal -= t.amount;  
+                });
+                return tTotal;
+            }, [rawTxs]);
+
+            const price = parseRpInput(priceStr) || target.price;
+            const kekurangan = price - tabungan;
+            const progress = Math.min(100, Math.max(0, (tabungan / price) * 100)) || 0;
+
+            const handleSave = async () => {
+                const newPrice = parseRpInput(priceStr);
+                if (!name || !newPrice) return;
+                
+                await saveToCloud('targets', userId, { name, price: newPrice });
+                setIsEditing(false);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold">Target Impian</h2>
+                    
+                    <div className="glass rounded-3xl p-6 md:p-10 flex flex-col items-center justify-center text-center shadow-lg relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+
+                        {isEditing ? (
+                            <div className="w-full max-w-md space-y-4 relative z-10 bg-white/50 dark:bg-black/50 p-6 rounded-2xl backdrop-blur-md border border-gray-200 dark:border-gray-700">
+                                <h3 className="font-bold text-lg">Atur Target Baru</h3>
+                                <div>
+                                    <label className="block text-sm text-left mb-1 text-gray-500">Nama Target</label>
+                                    <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Contoh: Beli Mobil" className="w-full p-3 rounded-xl bg-white dark:bg-darker border border-gray-300 dark:border-gray-600" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-left mb-1 text-gray-500">Harga (Rp)</label>
+                                    <input type="text" value={priceStr} onChange={e=>setPriceStr(parseRpInput(e.target.value) ? formatRp(parseRpInput(e.target.value)) : '')} placeholder="Rp 0" className="w-full p-3 rounded-xl bg-white dark:bg-darker border border-gray-300 dark:border-gray-600" />
+                                </div>
+                                <button onClick={handleSave} className="w-full py-3 bg-gradient-to-r from-orange-400 to-red-500 text-white font-bold rounded-xl shadow-lg">Simpan Target</button>
+                            </div>
+                        ) : (
+                            <div className="w-full max-w-lg relative z-10 flex flex-col items-center">
+                                <h3 className="text-2xl md:text-3xl font-extrabold mb-1 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-red-500">{target.name}</h3>
+                                <p className="text-gray-500 dark:text-gray-400 mb-8 font-medium">Goal: {formatRp(target.price)}</p>
+                                
+                                <div className="relative w-48 h-48 md:w-56 md:h-56 mb-8 drop-shadow-xl">
+                                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" className="text-gray-200 dark:text-gray-700" />
+                                        <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray="282.7" strokeDashoffset={282.7 - (282.7 * progress) / 100} className="text-orange-500 transition-all duration-1000 ease-out" />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-4xl font-black text-gray-800 dark:text-white">{progress.toFixed(0)}%</span>
+                                        <span className="text-xs text-gray-500 uppercase tracking-widest mt-1">Tercapai</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 w-full">
+                                    <div className="bg-white/60 dark:bg-gray-800/60 p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+                                        <p className="text-xs text-gray-500 mb-1">Terkumpul (Tabungan)</p>
+                                        <p className="font-bold text-green-500 text-lg md:text-xl">{formatRp(tabungan)}</p>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/60 p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+                                        <p className="text-xs text-gray-500 mb-1">Kekurangan Target</p>
+                                        <p className="font-bold text-red-500 text-lg md:text-xl">{kekurangan > 0 ? formatRp(kekurangan) : 'Rp 0'}</p>
+                                    </div>
+                                </div>
+
+                                <button onClick={() => setIsEditing(true)} className="mt-8 px-6 py-2 border-2 border-orange-500 text-orange-500 rounded-full font-bold hover:bg-orange-500 hover:text-white transition">
+                                    <i className="fas fa-edit mr-2"></i>Edit Target
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    {kekurangan <= 0 && tabungan > 0 && !isEditing && (
+                        <div className="bg-green-100 dark:bg-green-900/40 border border-green-400 p-4 rounded-xl text-center shadow-lg animate-bounce mt-4">
+                            <h3 className="text-green-600 dark:text-green-400 font-black text-xl"><i className="fas fa-trophy text-yellow-500 mr-2"></i> Selamat! Target Tercapai!</h3>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const TabBrankas = ({ userId, cloudData, saveToCloud }) => {
+            const [bTab, setBTab] = useState('Tabungan');
+
+            const allCategoryTxs = useMemo(() => cloudData.transactions.filter(t => t.userId === userId && t.category === bTab && !t.deleted), [cloudData.transactions, userId, bTab]);
+            
+            const actualTotalSaldo = useMemo(() => {
+                let sum = 0;
+                allCategoryTxs.forEach(t => {
+                    if (t.type === 'out') sum += t.amount;
+                    if (t.type === 'in') sum -= t.amount;
+                });
+                return sum;
+            }, [allCategoryTxs]);
+
+            const handleDelete = async (tx) => {
+                if(bTab === 'Pinjaman') {
+                    // Soft delete from history display only, keeps calculation correct
+                    await saveToCloud('transactions', tx.id, { ...tx, hiddenFromHistory: true });
+                }
+            };
+
+            const displayTxs = allCategoryTxs.filter(t => !t.hiddenFromHistory).sort((a,b) => new Date(b.date) - new Date(a.date));
+            const isTabungan = bTab === 'Tabungan';
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold">Brankas Finansial</h2>
+                    
+                    <div className="flex bg-gray-200 dark:bg-gray-800 rounded-full p-1 max-w-sm mx-auto shadow-inner">
+                        <button onClick={() => setBTab('Tabungan')} className={`flex-1 py-2 rounded-full text-sm font-bold transition ${isTabungan ? 'bg-white dark:bg-gray-600 text-green-600 shadow' : 'text-gray-500'}`}>
+                            <i className="fas fa-piggy-bank mr-2"></i>Tabungan
+                        </button>
+                        <button onClick={() => setBTab('Pinjaman')} className={`flex-1 py-2 rounded-full text-sm font-bold transition ${!isTabungan ? 'bg-white dark:bg-gray-600 text-yellow-600 shadow' : 'text-gray-500'}`}>
+                            <i className="fas fa-hand-holding-dollar mr-2"></i>Pinjaman
+                        </button>
+                    </div>
+
+                    <div className={`p-6 md:p-8 rounded-3xl text-white shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden transition-colors duration-500 ${isTabungan ? 'bg-gradient-to-br from-green-400 to-emerald-600' : 'bg-gradient-to-br from-yellow-400 to-orange-500'}`}>
+                        <i className={`fas ${isTabungan ? 'fa-piggy-bank' : 'fa-vault'} absolute -right-10 -bottom-10 text-9xl opacity-20`}></i>
+                        <h3 className="text-sm font-medium opacity-90 mb-2 relative z-10">Sisa Saldo {bTab}</h3>
+                        <div className="text-4xl md:text-5xl font-black relative z-10">{formatRp(actualTotalSaldo)}</div>
+                        <p className="text-xs opacity-75 mt-3 max-w-xs relative z-10">
+                            {isTabungan 
+                                ? "*Pengeluaran dompet ke kategori ini menambah saldo Tabungan." 
+                                : "*Pengeluaran dompet ke kategori ini menambah tanggungan Pinjaman."}
+                        </p>
+                    </div>
+
+                    <div className="glass rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 className="font-bold text-sm text-gray-600 dark:text-gray-300"><i className="fas fa-list mr-2"></i>Riwayat Permanen {bTab}</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                                <thead>
+                                    <tr className="text-gray-500 border-b dark:border-gray-700">
+                                        <th className="p-3">No</th>
+                                        <th className="p-3">Nama Transaksi</th>
+                                        <th className="p-3">Tanggal</th>
+                                        <th className="p-3 text-right">Jumlah</th>
+                                        {!isTabungan && <th className="p-3 text-center">Aksi</th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayTxs.length === 0 && (
+                                        <tr><td colSpan={isTabungan ? "4" : "5"} className="p-4 text-center text-gray-500">Belum ada riwayat.</td></tr>
+                                    )}
+                                    {displayTxs.map((t, i) => {
+                                        const isMasukKeBrankas = t.type === 'out'; 
+                                        return (
+                                            <tr key={t.id} className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                                                <td className="p-3">{i + 1}</td>
+                                                <td className="p-3 font-medium">{t.name}</td>
+                                                <td className="p-3 text-gray-500 text-xs">{t.date}</td>
+                                                <td className={`p-3 font-bold text-right ${isMasukKeBrankas ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {isMasukKeBrankas ? '+' : '-'}{formatRp(t.amount)}
+                                                </td>
+                                                {!isTabungan && (
+                                                    <td className="p-3 text-center">
+                                                        <button onClick={() => handleDelete(t)} className="text-red-500 hover:text-red-700 transition" title="Sembunyikan dari riwayat">
+                                                            <i className="fas fa-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const TabPengaturan = ({ user, setView, cloudData, saveToCloud, deleteFromCloud }) => {
+            const [newName, setNewName] = useState(user.username);
+            const [newPwd, setNewPwd] = useState(user.password);
+            const [msg, setMsg] = useState('');
+
+            const handleSave = async (e) => {
+                e.preventDefault();
+                await saveToCloud('users', user.id, { ...user, username: newName, password: newPwd });
+                setMsg('Profil berhasil diperbarui!');
+                setTimeout(() => setMsg(''), 3000);
+            };
+
+            const handleDeleteAll = () => {
+                const myTxs = cloudData.transactions.filter(t => t.userId === user.id);
+                myTxs.forEach(t => deleteFromCloud('transactions', t.id));
+                setMsg('Semua riwayat telah dihapus.');
+                setTimeout(() => setMsg(''), 3000);
+            };
+
+            return (
+                <div className="max-w-md mx-auto space-y-6">
+                    <h2 className="text-2xl font-bold mb-4">Pengaturan Akun</h2>
+                    
+                    <form onSubmit={handleSave} className="glass p-6 rounded-2xl shadow-sm space-y-4">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-green-400 to-blue-500 flex items-center justify-center text-white font-bold text-4xl shadow-lg">
+                                {user.username.charAt(0).toUpperCase()}
+                            </div>
+                        </div>
+                        {msg && <div className="bg-green-500/20 text-green-600 dark:text-green-400 p-2 rounded text-center text-sm font-bold border border-green-500">{msg}</div>}
+                        <div>
+                            <label className="block text-sm mb-1 text-gray-500">Ubah Nama / Username</label>
+                            <input required type="text" value={newName} onChange={e=>setNewName(e.target.value)} className="w-full p-3 rounded-xl bg-gray-100 dark:bg-dark border border-gray-300 dark:border-gray-700" />
+                        </div>
+                        <div>
+                            <label className="block text-sm mb-1 text-gray-500">Ubah Password</label>
+                            <input required type="text" value={newPwd} onChange={e=>setNewPwd(e.target.value)} className="w-full p-3 rounded-xl bg-gray-100 dark:bg-dark border border-gray-300 dark:border-gray-700" />
+                        </div>
+                        <button type="submit" className="w-full py-3 bg-blue-500 text-white font-bold rounded-xl shadow-lg hover:bg-blue-600 transition">Simpan Perubahan</button>
+                    </form>
+
+                    <div className="glass border border-red-200 dark:border-red-900/50 p-6 rounded-2xl shadow-sm space-y-4 text-center">
+                        <h3 className="text-red-500 font-bold"><i className="fas fa-exclamation-triangle mr-2"></i>Zona Berbahaya</h3>
+                        <p className="text-xs text-gray-500">Menghapus semua riwayat akan menghilangkan seluruh data transaksi Pemasukan, Pengeluaran, Tabungan, dan Pinjaman Anda secara permanen dari Cloud.</p>
+                        <button type="button" onClick={() => {if(confirm("Hapus semua riwayat permanen?")) handleDeleteAll()}} className="w-full py-3 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-300 dark:border-red-800 font-bold rounded-xl hover:bg-red-500 hover:text-white transition">
+                            Hapus Semua Riwayat Saya
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- DASHBOARD ADMIN ---
+        const AdminDashboard = ({ setView, isDark, setIsDark, cloudData, saveToCloud, deleteFromCloud }) => {
+            const [activeTab, setActiveTab] = useState('dashboard');
+
+            const Header = () => (
+                <div className="glass sticky top-0 z-50 px-4 py-3 flex justify-between items-center shadow-md border-b-2 border-red-500">
+                    <div className="flex items-center space-x-3">
+                        <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-10 h-10 object-contain" />
+                        <div>
+                            <p className="text-xs text-red-500 font-bold uppercase tracking-wider">Mode Admin</p>
+                            <p className="font-bold text-sm md:text-base leading-tight">Halo, Admin!</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <button onClick={() => setIsDark(!isDark)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                            <i className={`fas ${isDark ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-600'}`}></i>
+                        </button>
+                        <button onClick={() => setView('splash')} className="p-2 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition shadow border border-red-200 dark:border-red-800">
+                            <i className="fas fa-power-off"></i>
+                        </button>
+                    </div>
+                </div>
+            );
+
+            const tabs = [
+                { id: 'dashboard', icon: 'fa-chart-pie', label: 'Dashboard' },
+                { id: 'datauser', icon: 'fa-users', label: 'Data User' },
+                { id: 'brankas', icon: 'fa-vault', label: 'Brankas Global' },
+                { id: 'pengaturan', icon: 'fa-cogs', label: 'Pengaturan' }
+            ];
+
+            return (
+                <div className="flex flex-col md:flex-row min-h-screen">
+                    <div className="md:hidden flex-col w-full sticky top-0 z-40">
+                        <Header />
+                        <div className="glass flex overflow-x-auto hide-scrollbar border-b border-gray-200 dark:border-gray-700 bg-red-50/50 dark:bg-red-900/10">
+                            {tabs.map(t => (
+                                <button key={t.id} onClick={() => setActiveTab(t.id)} 
+                                    className={`flex-1 min-w-[90px] py-3 text-xs flex flex-col items-center gap-1 transition-colors ${activeTab === t.id ? 'text-red-600 border-b-2 border-red-500 bg-red-100/50 dark:bg-red-900/30 font-bold' : 'text-gray-500 hover:text-red-400'}`}>
+                                    <i className={`fas ${t.icon} text-lg`}></i><span>{t.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="hidden md:flex flex-col w-64 glass shadow-xl border-r-2 border-red-500 z-40 relative bg-white/50 dark:bg-black/50">
+                        <div className="p-6 text-center border-b border-gray-200 dark:border-gray-700">
+                            <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-20 h-20 mx-auto mb-2 object-contain" />
+                            <h2 className="font-black text-xl text-red-600 uppercase tracking-widest"><i className="fas fa-shield-alt mr-2"></i>ADMIN</h2>
+                        </div>
+                        <div className="flex-1 py-4 flex flex-col gap-2 px-4">
+                            {tabs.map(t => (
+                                <button key={t.id} onClick={() => setActiveTab(t.id)} 
+                                    className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === t.id ? 'bg-gradient-to-r from-red-500 to-rose-700 text-white shadow-md font-bold' : 'hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-600 dark:text-gray-300 font-medium'}`}>
+                                    <i className={`fas ${t.icon} w-5 text-center`}></i><span>{t.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col max-w-full relative h-screen overflow-hidden">
+                        <div className="hidden md:block"> <Header /> </div>
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 hide-scrollbar">
+                            <div className="max-w-6xl mx-auto pb-20 md:pb-0">
+                                {activeTab === 'dashboard' && <AdminTabDashboard cloudData={cloudData} />}
+                                {activeTab === 'datauser' && <AdminTabDataUser cloudData={cloudData} saveToCloud={saveToCloud} deleteFromCloud={deleteFromCloud} />}
+                                {activeTab === 'brankas' && <AdminTabBrankas cloudData={cloudData} />}
+                                {activeTab === 'pengaturan' && <AdminTabPengaturan cloudData={cloudData} saveToCloud={saveToCloud} deleteFromCloud={deleteFromCloud} />}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminTabDashboard = ({ cloudData }) => {
+            const [filterDate, setFilterDate] = useState('');
+            const [filterUser, setFilterUser] = useState('');
+
+            const rawTxs = useMemo(() => cloudData.transactions.filter(t => !t.deleted && !t.hiddenFromHistory), [cloudData.transactions]);
+
+            const stats = useMemo(() => {
+                let saldo = 0, tabungan = 0, pinjaman = 0;
+                rawTxs.forEach(t => {
+                    if (t.category === 'Umum') {
+                        if(t.type === 'in') saldo += t.amount;
+                        if(t.type === 'out') saldo -= t.amount;
+                    } else if (t.category === 'Tabungan') {
+                        if(t.type === 'out') { saldo -= t.amount; tabungan += t.amount; }
+                        if(t.type === 'in') { saldo += t.amount; tabungan -= t.amount; }
+                    } else if (t.category === 'Pinjaman') {
+                        if(t.type === 'out') { saldo -= t.amount; pinjaman += t.amount; }
+                        if(t.type === 'in') { saldo += t.amount; pinjaman -= t.amount; }
+                    }
+                });
+                return { saldo, tabungan, pinjaman };
+            }, [rawTxs]);
+
+            const filteredTxs = useMemo(() => {
+                return rawTxs.filter(t => {
+                    const u = cloudData.users.find(u => u.id === t.userId)?.username || 'Deleted User';
+                    const matchUser = u.toLowerCase().includes(filterUser.toLowerCase());
+                    const matchDate = filterDate ? t.date === filterDate : true;
+                    return matchUser && matchDate;
+                }).sort((a,b) => new Date(b.date) - new Date(a.date));
+            }, [rawTxs, cloudData.users, filterDate, filterUser]);
+
+            const totalFiltered = useMemo(() => filteredTxs.reduce((sum, t) => sum + (t.type === 'in' ? t.amount : -t.amount), 0), [filteredTxs]);
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-3">Statistik Global</h2>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="glass p-4 rounded-2xl border-t-4 border-blue-500 shadow-sm">
+                            <p className="text-xs text-gray-500 uppercase font-bold mb-1"><i className="fas fa-users mr-1"></i>Total User</p>
+                            <p className="text-2xl md:text-3xl font-black">{cloudData.users.length}</p>
+                        </div>
+                        <div className="glass p-4 rounded-2xl border-t-4 border-green-500 shadow-sm">
+                            <p className="text-xs text-gray-500 uppercase font-bold mb-1"><i className="fas fa-wallet mr-1"></i>Saldo Global</p>
+                            <p className="text-lg md:text-xl font-black text-green-600 dark:text-green-400">{formatRp(stats.saldo)}</p>
+                        </div>
+                        <div className="glass p-4 rounded-2xl border-t-4 border-emerald-500 shadow-sm">
+                            <p className="text-xs text-gray-500 uppercase font-bold mb-1"><i className="fas fa-piggy-bank mr-1"></i>Tabungan Global</p>
+                            <p className="text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400">{formatRp(stats.tabungan)}</p>
+                        </div>
+                        <div className="glass p-4 rounded-2xl border-t-4 border-yellow-500 shadow-sm">
+                            <p className="text-xs text-gray-500 uppercase font-bold mb-1"><i className="fas fa-hand-holding-dollar mr-1"></i>Pinjaman Global</p>
+                            <p className="text-lg md:text-xl font-black text-yellow-600 dark:text-yellow-400">{formatRp(stats.pinjaman)}</p>
+                        </div>
+                    </div>
+
+                    <h2 className="text-xl font-bold mt-8 mb-4 border-l-4 border-red-500 pl-3">Semua Transaksi</h2>
+                    
+                    <div className="glass p-4 rounded-xl flex gap-3 mb-4">
+                        <input type="text" placeholder="Filter Nama User..." value={filterUser} onChange={e=>setFilterUser(e.target.value)} 
+                            className="flex-1 p-2 rounded-lg bg-white dark:bg-dark border border-gray-300 dark:border-gray-600 text-sm" />
+                        <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} 
+                            className="p-2 rounded-lg bg-white dark:bg-dark border border-gray-300 dark:border-gray-600 text-sm dark:[color-scheme:dark]" />
+                    </div>
+
+                    <div className="glass rounded-xl shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                                <thead>
+                                    <tr className="bg-gray-100 dark:bg-gray-800 text-gray-500 uppercase text-xs">
+                                        <th className="p-3">User</th>
+                                        <th className="p-3">Transaksi</th>
+                                        <th className="p-3">Kategori</th>
+                                        <th className="p-3">Tanggal</th>
+                                        <th className="p-3 text-right">Jumlah</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTxs.length===0 && <tr><td colSpan="5" className="p-4 text-center">Data kosong.</td></tr>}
+                                    {filteredTxs.map(t => {
+                                        const username = cloudData.users.find(u => u.id === t.userId)?.username || 'Deleted User';
+                                        return (
+                                            <tr key={t.id} className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                                                <td className="p-3 font-bold text-blue-500">{username}</td>
+                                                <td className="p-3">{t.name}</td>
+                                                <td className="p-3"><span className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-xs">{t.category}</span></td>
+                                                <td className="p-3 text-gray-500">{t.date}</td>
+                                                <td className={`p-3 font-bold text-right ${t.type === 'in' ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {t.type === 'in' ? '+' : '-'}{formatRp(t.amount)}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-gray-50 dark:bg-gray-800 font-bold border-t-2 border-gray-300 dark:border-gray-600">
+                                        <td colSpan="4" className="p-3 text-right">Jumlah Total:</td>
+                                        <td className={`p-3 text-right ${totalFiltered >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {formatRp(totalFiltered)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminTabDataUser = ({ cloudData, saveToCloud, deleteFromCloud }) => {
+            const [showPwd, setShowPwd] = useState({});
+            const [newUser, setNewUser] = useState({ username: '', password: '' });
+
+            const togglePwd = (id) => setShowPwd(prev => ({...prev, [id]: !prev[id]}));
+
+            const handleAdd = async (e) => {
+                e.preventDefault();
+                if(!newUser.username || !newUser.password) return;
+                if(cloudData.users.find(u => u.username === newUser.username)) return alert("Username sudah ada!");
+                await saveToCloud('users', generateId(), { username: newUser.username, password: newUser.password });
+                setNewUser({ username: '', password: '' });
+            };
+
+            const handleDelete = async (id) => {
+                await deleteFromCloud('users', id);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-3">Kelola Data User</h2>
+
+                    <form onSubmit={handleAdd} className="glass p-4 rounded-xl flex flex-col md:flex-row gap-3 items-end shadow-sm">
+                        <div className="flex-1 w-full">
+                            <label className="block text-xs mb-1 text-gray-500 font-bold">Username Baru</label>
+                            <input required type="text" value={newUser.username} onChange={e=>setNewUser({...newUser, username: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark text-sm" />
+                        </div>
+                        <div className="flex-1 w-full">
+                            <label className="block text-xs mb-1 text-gray-500 font-bold">Password Baru</label>
+                            <input required type="text" value={newUser.password} onChange={e=>setNewUser({...newUser, password: e.target.value})} className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark text-sm" />
+                        </div>
+                        <button type="submit" className="w-full md:w-auto px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg shadow transition">
+                            <i className="fas fa-plus mr-2"></i>Tambah User
+                        </button>
+                    </form>
+
+                    <div className="glass rounded-xl shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                                <thead>
+                                    <tr className="bg-gray-100 dark:bg-gray-800 text-gray-500 uppercase text-xs">
+                                        <th className="p-4 w-16">No</th>
+                                        <th className="p-4">Nama User</th>
+                                        <th className="p-4">Password</th>
+                                        <th className="p-4 text-center w-24">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cloudData.users.map((u, i) => (
+                                        <tr key={u.id} className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                                            <td className="p-4">{i + 1}</td>
+                                            <td className="p-4 font-bold">{u.username}</td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-xs select-all">
+                                                        {showPwd[u.id] ? u.password : '••••••••'}
+                                                    </span>
+                                                    <button onClick={() => togglePwd(u.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                                                        <i className={`fas ${showPwd[u.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <button onClick={() => {if(confirm("Hapus user?")) handleDelete(u.id)}} className="text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 p-2 rounded transition" title="Hapus User">
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {cloudData.users.length === 0 && <tr><td colSpan="4" className="p-4 text-center">Belum ada user.</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminTabBrankas = ({ cloudData }) => {
+            const [bTab, setBTab] = useState('Tabungan');
+            const [filterDate, setFilterDate] = useState('');
+            const [filterUser, setFilterUser] = useState('');
+
+            const allCategoryTxs = useMemo(() => cloudData.transactions.filter(t => t.category === bTab && !t.deleted && !t.hiddenFromHistory), [cloudData.transactions, bTab]);
+            
+            const totalKeseluruhan = useMemo(() => {
+                let sum = 0;
+                allCategoryTxs.forEach(t => {
+                    if (t.type === 'out') sum += t.amount;
+                    if (t.type === 'in') sum -= t.amount;
+                });
+                return sum;
+            }, [allCategoryTxs]);
+
+            const filteredTxs = useMemo(() => {
+                return allCategoryTxs.filter(t => {
+                    const u = cloudData.users.find(u => u.id === t.userId)?.username || 'Unknown';
+                    const matchUser = u.toLowerCase().includes(filterUser.toLowerCase());
+                    const matchDate = filterDate ? t.date === filterDate : true;
+                    return matchUser && matchDate;
+                }).sort((a,b) => new Date(b.date) - new Date(a.date));
+            }, [allCategoryTxs, cloudData.users, filterDate, filterUser]);
+
+            const sumFiltered = useMemo(() => {
+                let sum = 0;
+                filteredTxs.forEach(t => {
+                    if (t.type === 'out') sum += t.amount;
+                    if (t.type === 'in') sum -= t.amount;
+                });
+                return sum;
+            }, [filteredTxs]);
+
+            return (
+                <div className="space-y-6">
+                    <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-3">Brankas Global</h2>
+
+                    <div className="flex bg-gray-200 dark:bg-gray-800 rounded-full p-1 max-w-sm shadow-inner">
+                        <button onClick={() => setBTab('Tabungan')} className={`flex-1 py-2 rounded-full text-sm font-bold transition ${bTab === 'Tabungan' ? 'bg-white dark:bg-gray-600 text-emerald-600 shadow' : 'text-gray-500'}`}>
+                            <i className="fas fa-piggy-bank mr-2"></i>Tabungan
+                        </button>
+                        <button onClick={() => setBTab('Pinjaman')} className={`flex-1 py-2 rounded-full text-sm font-bold transition ${bTab === 'Pinjaman' ? 'bg-white dark:bg-gray-600 text-yellow-600 shadow' : 'text-gray-500'}`}>
+                            <i className="fas fa-hand-holding-dollar mr-2"></i>Pinjaman
+                        </button>
+                    </div>
+
+                    <div className={`p-6 rounded-2xl text-white shadow-lg ${bTab === 'Tabungan' ? 'bg-gradient-to-r from-emerald-500 to-green-600' : 'bg-gradient-to-r from-yellow-500 to-orange-600'}`}>
+                        <h3 className="text-sm opacity-90">Total {bTab} Keseluruhan (Semua User)</h3>
+                        <div className="text-4xl font-black">{formatRp(totalKeseluruhan)}</div>
+                    </div>
+
+                    <div className="glass p-4 rounded-xl flex gap-3">
+                        <input type="text" placeholder="Filter Nama User..." value={filterUser} onChange={e=>setFilterUser(e.target.value)} 
+                            className="flex-1 p-2 rounded-lg bg-white dark:bg-dark border border-gray-300 dark:border-gray-600 text-sm" />
+                        <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} 
+                            className="p-2 rounded-lg bg-white dark:bg-dark border border-gray-300 dark:border-gray-600 text-sm dark:[color-scheme:dark]" />
+                    </div>
+
+                    <div className="glass rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 className="font-bold text-sm text-gray-600 dark:text-gray-300">Riwayat {bTab} Global</h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm whitespace-nowrap">
+                                <thead>
+                                    <tr className="text-gray-500 border-b dark:border-gray-700 text-xs uppercase">
+                                        <th className="p-3">No</th>
+                                        <th className="p-3">User</th>
+                                        <th className="p-3">Transaksi</th>
+                                        <th className="p-3">Tanggal</th>
+                                        <th className="p-3 text-right">Perubahan Saldo Brankas</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredTxs.length === 0 && <tr><td colSpan="5" className="p-4 text-center text-gray-500">Belum ada riwayat.</td></tr>}
+                                    {filteredTxs.map((t, i) => {
+                                        const username = cloudData.users.find(u => u.id === t.userId)?.username || 'Deleted User';
+                                        const isMasukKeBrankas = t.type === 'out'; 
+                                        return (
+                                            <tr key={t.id} className="border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                                                <td className="p-3">{i + 1}</td>
+                                                <td className="p-3 font-bold text-blue-500">{username}</td>
+                                                <td className="p-3">{t.name}</td>
+                                                <td className="p-3 text-gray-500 text-xs">{t.date}</td>
+                                                <td className={`p-3 font-bold text-right ${isMasukKeBrankas ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {isMasukKeBrankas ? '+' : '-'}{formatRp(t.amount)}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-gray-50 dark:bg-gray-800 font-bold border-t border-gray-300 dark:border-gray-600">
+                                        <td colSpan="4" className="p-3 text-right">Akumulasi Filter:</td>
+                                        <td className={`p-3 text-right ${sumFiltered >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                            {formatRp(sumFiltered)}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminTabPengaturan = ({ cloudData, saveToCloud, deleteFromCloud }) => {
+            const preview = cloudData.settings.find(s => s.id === 'global')?.bgImage || '';
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                        const base64String = reader.result;
+                        await saveToCloud('settings', 'global', { bgImage: base64String });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleClearBg = async () => {
+                await deleteFromCloud('settings', 'global');
+            };
+
+            return (
+                <div className="max-w-md space-y-6">
+                    <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-3">Pengaturan Aplikasi</h2>
+                    
+                    <div className="glass p-6 rounded-2xl shadow-sm space-y-4">
+                        <h3 className="font-bold text-gray-700 dark:text-gray-300"><i className="fas fa-image mr-2 text-blue-500"></i>Background Aplikasi Global</h3>
+                        <p className="text-xs text-gray-500 mb-4">Upload gambar transparan atau responsif untuk mengubah tampilan latar belakang halaman User dan Admin.</p>
+                        
+                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-4 text-center relative overflow-hidden h-40 flex items-center justify-center bg-gray-50 dark:bg-gray-800">
+                            {preview ? (
+                                <img src={preview} alt="Bg Preview" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+                            ) : (
+                                <div className="text-gray-400">
+                                    <i className="fas fa-upload text-3xl mb-2"></i>
+                                    <p className="text-sm font-bold">Pilih Gambar</p>
+                                </div>
+                            )}
+                            <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                        </div>
+
+                        {preview && (
+                            <button onClick={handleClearBg} className="w-full py-2 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 font-bold rounded-lg hover:bg-red-500 hover:text-white transition">
+                                <i className="fas fa-trash mr-2"></i>Hapus Latar Belakang
+                            </button>
+                        )}
+                        <p className="text-[10px] text-gray-400 text-center italic">*Disarankan menggunakan gambar ukuran di bawah 2MB.</p>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
