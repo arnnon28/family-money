@@ -561,7 +561,7 @@
 
                         {/* Scrollable Content Area */}
                         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-                            {activeTab === 'beranda' && <UserBeranda stats={stats} userTx={userTx} userData={activeUserDoc} saveDoc={saveDoc} isReadOnly={isReadOnly} />}
+                            {activeTab === 'beranda' && <UserBeranda stats={stats} userTx={userTx} userData={activeUserDoc} saveDoc={saveDoc} isReadOnly={isReadOnly} onOpenGlobalModal={(type) => { setGlobalTxType(type); setShowGlobalModal(true); }} />}
                             {activeTab === 'riwayat' && <UserRiwayat userTx={userTx} deleteDoc={deleteDoc} saveDoc={saveDoc} userData={activeUserDoc} isReadOnly={isReadOnly} />}
                             {activeTab === 'target' && <UserTarget userData={activeUserDoc} stats={stats} saveDoc={saveDoc} isReadOnly={isReadOnly} />}
                             {activeTab === 'brankas' && <UserBrankas stats={stats} userTx={userTx} saveDoc={saveDoc} isReadOnly={isReadOnly} />}
@@ -578,15 +578,14 @@
                             </button>
                         ))}
                     </div>
+
+                    {showGlobalModal && !isReadOnly && <TransactionModal type={globalTxType} onClose={() => setShowGlobalModal(false)} userData={activeUserDoc} saveDoc={saveDoc} />}
                 </div>
             );
         }
 
         // --- Beranda ---
-        function UserBeranda({ stats, userTx, userData, saveDoc, isReadOnly }) {
-            const [showModal, setShowModal] = useState(false);
-            const [txType, setTxType] = useState('income');
-
+        function UserBeranda({ stats, userTx, userData, saveDoc, isReadOnly, onOpenGlobalModal }) {
             const monthlyStats = useMemo(() => {
                 const now = new Date();
                 const currentYear = now.getFullYear();
@@ -676,10 +675,10 @@
 
                     {!isReadOnly && (
                         <div className="grid grid-cols-2 gap-3 md:gap-4">
-                            <button onClick={() => {setTxType('income'); setShowModal(true)}} className="bg-brandGreen text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandGreen/20 hover:bg-emerald-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
+                            <button onClick={() => onOpenGlobalModal('income')} className="bg-brandGreen text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandGreen/20 hover:bg-emerald-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
                                 <i className="fas fa-plus-circle"></i> Pemasukan
                             </button>
-                            <button onClick={() => {setTxType('expense'); setShowModal(true)}} className="bg-brandRed text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandRed/20 hover:bg-red-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
+                            <button onClick={() => onOpenGlobalModal('expense')} className="bg-brandRed text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandRed/20 hover:bg-red-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
                                 <i className="fas fa-minus-circle"></i> Pengeluaran
                             </button>
                         </div>
@@ -707,12 +706,11 @@
                             ))}
                         </div>
                     </div>
-
-                    {showModal && !isReadOnly && <TransactionModal type={txType} onClose={() => setShowModal(false)} userData={userData} saveDoc={saveDoc} />}
                 </div>
             );
         }
 
+        // --- Transaction Modal ---
         function TransactionModal({ type, onClose, userData, saveDoc, initialData }) {
             const [amount, setAmount] = useState(initialData ? initialData.amount.toString() : '');
             const [name, setName] = useState(initialData ? initialData.name : '');
@@ -748,67 +746,78 @@
             };
 
             return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
-                    <div className={`bg-white dark:bg-darkCard w-full md:max-w-md rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-2xl animate-fade-in border-t-4 ${activeType === 'income' ? 'border-brandGreen' : 'border-brandRed'}`}>
-                        <div className="flex justify-between items-center mb-6">
+                <div className="fixed top-[64px] bottom-[64px] md:top-0 md:bottom-0 left-0 right-0 z-20 md:z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
+                    <div className={`bg-white dark:bg-darkCard w-full md:max-w-md rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-2xl animate-fade-in border-t-4 flex flex-col max-h-full ${activeType === 'income' ? 'border-brandGreen' : 'border-brandRed'}`}>
+                        {/* Header Modal - Tetap Fixed di atas Card */}
+                        <div className="flex justify-between items-center mb-5 shrink-0">
                             <h2 className={`text-lg md:text-xl font-bold ${activeType === 'income' ? 'text-brandGreen' : 'text-brandRed'}`}>
                                 {isEditing ? 'Edit Transaksi' : `Input ${activeType === 'income' ? 'Pemasukan' : 'Pengeluaran'}`}
                             </h2>
-                            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-800"><i className="fas fa-times text-lg md:text-xl"></i></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Nama Transaksi</label>
-                                <div className="relative mt-1">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <TransactionNameImageIcon />
-                                    </div>
-                                    <input type="text" value={name} onChange={e=>setName(e.target.value)} className={`w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm md:text-base font-bold outline-none focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="Misal: Gaji, Makan, dll" required />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Nominal (Rp)</label>
-                                <div className="relative mt-1">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <NominalImageIcon />
-                                    </div>
-                                    <input type="text" inputMode="numeric" value={amount ? formatRp(amount).replace('Rp', '').trim() : ''} onChange={handleAmountChange} className={`w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-lg md:text-xl font-bold text-right outline-none text-gray-700 dark:text-gray-200 focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="0" required />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Tanggal</label>
-                                    <div className="relative mt-1">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <TanggalImageIcon />
-                                        </div>
-                                        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm" required />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Kategori</label>
-                                    <div className="relative mt-1">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <KategoriImageIcon />
-                                        </div>
-                                        <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm appearance-none cursor-pointer">
-                                            <option>Umum</option>
-                                            <option>Tabungan</option>
-                                            <option>Pinjaman</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="submit" className={`w-full py-3 md:py-4 mt-2 rounded-xl text-white font-bold text-sm md:text-lg shadow-lg transition ${activeType === 'income' ? 'bg-brandGreen hover:bg-emerald-600' : 'bg-brandRed hover:bg-red-600'}`}>
-                                Simpan Data
+                            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors">
+                                <i className="fas fa-times text-lg md:text-xl"></i>
                             </button>
+                        </div>
+                        
+                        {/* Form Body - Hanya area ini yang discroll secara internal jika keyboard HP aktif */}
+                        <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden min-h-0">
+                            <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-3 scrollbar-thin">
+                                <div>
+                                    <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Nama Transaksi</label>
+                                    <div className="relative mt-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <TransactionNameImageIcon />
+                                        </div>
+                                        <input type="text" value={name} onChange={e=>setName(e.target.value)} className={`w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm md:text-base font-bold outline-none focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="Misal: Gaji, Makan, dll" required />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Nominal (Rp)</label>
+                                    <div className="relative mt-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <NominalImageIcon />
+                                        </div>
+                                        <input type="text" inputMode="numeric" value={amount ? formatRp(amount).replace('Rp', '').trim() : ''} onChange={handleAmountChange} className={`w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-lg md:text-xl font-bold text-right outline-none text-gray-700 dark:text-gray-200 focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="0" required />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Tanggal</label>
+                                        <div className="relative mt-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <TanggalImageIcon />
+                                            </div>
+                                            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm" required />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Kategori</label>
+                                        <div className="relative mt-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <KategoriImageIcon />
+                                            </div>
+                                            <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm appearance-none cursor-pointer">
+                                                <option>Umum</option>
+                                                <option>Tabungan</option>
+                                                <option>Pinjaman</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Tombol Simpan - Tetap Fixed di bagian bawah Card */}
+                            <div className="pt-4 shrink-0 border-t border-gray-100 dark:border-gray-800">
+                                <button type="submit" className={`w-full py-3 md:py-4 rounded-xl text-white font-bold text-sm md:text-lg shadow-lg transition ${activeType === 'income' ? 'bg-brandGreen hover:bg-emerald-600' : 'bg-brandRed hover:bg-red-600'}`}>
+                                    Simpan Data
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
             );
         }
 
-        // --- Riwayat (Menggunakan Ikon Cari Nama & Tanggal Berupa Gambar Vektor Baru) ---
+        // --- Riwayat ---
         function UserRiwayat({ userTx, deleteDoc, saveDoc, userData, isReadOnly }) {
             const [filterTab, setFilterTab] = useState('semua');
             const [searchDate, setSearchDate] = useState('');
@@ -825,7 +834,7 @@
                 return res;
             }, [userTx, filterTab, searchDate, searchName]);
 
-            const totalAmount = useMemo(() => filteredTx.reduce((acc, curr) => acc + (curr.type === 'income' ? curr.amount : -curr.amount), 0), [filteredTx]);
+            const totalAmount = useMemo(() => filteredTx.reduce((acc, curr) => acc + (acc = curr.type === 'income' ? curr.amount : -curr.amount), 0), [filteredTx]);
 
             const handleDeleteTransaction = async () => {
                 if (!deleteTxConfirm) return;
@@ -898,7 +907,6 @@
                     </div>
 
                     <div className="flex gap-2">
-                        {/* Input Tanggal dengan Ikon Gambar Vektor */}
                         <div className="relative w-1/3">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <TanggalImageIcon />
@@ -906,7 +914,6 @@
                             <input type="date" value={searchDate} onChange={e=>setSearchDate(e.target.value)} className="w-full p-2 md:p-3 pl-10 md:pl-10 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 text-xs md:text-sm outline-none" />
                         </div>
                         
-                        {/* Input Cari Nama dengan Ikon Gambar Vektor */}
                         <div className="relative flex-1">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <SearchImageIcon />
@@ -977,7 +984,7 @@
             );
         }
 
-        // --- Target (Menggunakan Ikon Target & Harga Nominal Berupa Gambar Vektor Baru) ---
+        // --- Target ---
         function UserTarget({ userData, stats, saveDoc, isReadOnly }) {
             const [isEditing, setIsEditing] = useState(false);
             const [name, setName] = useState(userData.targetName);
@@ -1160,7 +1167,7 @@
             );
         }
 
-        // --- Pengaturan (Menggunakan Ikon Nama & Password Berupa Gambar Vektor Baru) ---
+        // --- Pengaturan ---
         function UserPengaturan({ currentUser, saveDoc, userTx, deleteDoc }) {
             const [name, setName] = useState(currentUser.username);
             const [pass, setPass] = useState(currentUser.password);
@@ -1411,6 +1418,7 @@
             );
         }
 
+        // --- Data User Admin ---
         function AdminDataUser({ users, saveDoc, deleteDoc, transactions }) {
             const [showAdd, setShowAdd] = useState(false);
             const [newU, setNewU] = useState('');
@@ -1662,6 +1670,7 @@
             );
         }
 
+        // --- Admin Brankas ---
         function AdminBrankas({ transactions, users }) {
             const [tab, setTab] = useState('tabungan');
             const [fDate, setFDate] = useState('');
@@ -1764,6 +1773,7 @@
             );
         }
 
+        // --- Admin Pengaturan ---
         function AdminPengaturan({ saveDoc, deleteDoc, users, transactions }) {
             const [showConfirmReset, setShowConfirmReset] = useState(false);
             const [msg, setMsg] = useState('');
