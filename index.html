@@ -91,10 +91,123 @@
     <script type="text/babel" data-type="module">
         const { useState, useEffect, useMemo } = React;
 
-        // --- Utils ---
         const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
         const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2);
         const quotes = ["Hemat pangkal kaya.", "Kelola uangmu, atau uang yang mengelolamu.", "Investasi terbaik adalah pada dirimu sendiri.", "Sedikit demi sedikit, lama-lama menjadi bukit."];
+
+        // --- Ikon Gambar Vektor Premium (Reusable Inline SVGs) ---
+        const UserImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="10" fill="url(#userGrad)" />
+                <path d="M12 11C13.6569 11 15 9.65685 15 8C15 6.34315 13.6569 5 12 5C10.3431 5 9 6.34315 9 8C9 9.65685 10.3431 11 12 11Z" fill="white"/>
+                <path d="M12 13C9.33 13 4 14.33 4 17V19H20V17C20 14.33 14.67 13 12 13Z" fill="white"/>
+                <defs>
+                    <linearGradient id="userGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#3b82f6"/>
+                        <stop offset="1" stopColor="#8b5cf6"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const PasswordImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#lockGrad)" />
+                <path d="M12 11C11.1716 11 10.5 11.6716 10.5 12.5C10.5 13.1116 10.8654 13.6377 11.3875 13.8712L11 17H13L12.6125 13.8712C13.1346 13.6377 13.5 13.1116 13.5 12.5C13.5 11.6716 12.8284 11 12 11Z" fill="white"/>
+                <path d="M17 10H16V8C16 5.79 14.21 4 12 4C9.79 4 8 5.79 8 8V10H7C6.45 10 6 10.45 6 11V18C6 18.55 6.45 19 7 19H17C17.55 19 18 18.55 18 18V11C18 10.45 17.55 10 17 10ZM10 8C10 6.9 10.9 6 12 6C13.1 6 14 6.9 14 8V10H10V8Z" fill="white" fillRule="evenodd" clipRule="evenodd"/>
+                <defs>
+                    <linearGradient id="lockGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#ef4444"/>
+                        <stop offset="1" stopColor="#ec4899"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const TransactionNameImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#noteGrad)" />
+                <path d="M16 12H8V14H16V12Z" fill="white"/>
+                <path d="M16 8H8V10H16V8Z" fill="white"/>
+                <path d="M6 18V6C6 4.9 6.9 4 8 4H16C17.1 4 18 4.9 18 6V18L12 15L6 18Z" fill="white" fillRule="evenodd" clipRule="evenodd"/>
+                <defs>
+                    <linearGradient id="noteGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#10b981"/>
+                        <stop offset="1" stopColor="#059669"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const NominalImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#walletGrad)" />
+                <path d="M19 10V14C19 14.55 18.55 15 18 15H17V17C17 17.55 16.55 18 16 18H7C6.45 18 6 17.55 6 17V7C6 6.45 6.45 6 7 6H16C16.55 6 17 6.45 17 7V9H18C18.55 9 19 9.45 19 10ZM15 14H8V16H15V14ZM15 8H8V10H15V8ZM18 11H16V13H18V11Z" fill="white" fillRule="evenodd" clipRule="evenodd"/>
+                <defs>
+                    <linearGradient id="walletGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#f59e0b"/>
+                        <stop offset="1" stopColor="#d97706"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const TanggalImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#calGrad)" />
+                <path d="M17 12H7V14H17V12ZM14 15H10V17H14V15ZM16 5V7H8V5H6V19H18V5H16ZM16 9H8V11H16V9Z" fill="white" fillRule="evenodd" clipRule="evenodd"/>
+                <defs>
+                    <linearGradient id="calGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#3b82f6"/>
+                        <stop offset="1" stopColor="#1d4ed8"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const KategoriImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#catGrad)" />
+                <path d="M12 7H17V9H12V7ZM12 11H17V13H12V11ZM12 15H17V17H12V15ZM7 7H9V9H7V7ZM7 11H9V13H7V11ZM7 15H9V17H7V15Z" fill="white" fillRule="evenodd" clipRule="evenodd"/>
+                <defs>
+                    <linearGradient id="catGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#8b5cf6"/>
+                        <stop offset="1" stopColor="#6d28d9"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const SearchImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#searchGrad)" />
+                <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="white"/>
+                <defs>
+                    <linearGradient id="searchGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#4b5563"/>
+                        <stop offset="1" stopColor="#1f2937"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
+
+        const TargetNameImageIcon = () => (
+            <svg className="w-5 h-5 drop-shadow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="12" fill="url(#targetGrad)" />
+                <circle cx="12" cy="12" r="5" stroke="white" strokeWidth="2" />
+                <circle cx="12" cy="12" r="2" fill="white" />
+                <path d="M12 2V5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M12 19V22" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M2 12H5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M19 12H22" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                <defs>
+                    <linearGradient id="targetGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#f59e0b"/>
+                        <stop offset="1" stopColor="#ef4444"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        );
 
         // --- Main App Component ---
         function App() {
@@ -214,7 +327,7 @@
                     {appState === 'auth' && <AuthModal users={users} onLogin={u => { setCurrentUser(u); setAppState('user'); }} onBack={() => setAppState('splash')} saveDoc={saveDoc} />}
                     {appState === 'adminAuth' && <AdminAuthModal onLogin={() => setAppState('admin')} onBack={() => setAppState('splash')} />}
                     
-                    {appState === 'user' && currentUser && <UserLayout currentUser={users.find(u => u.id === currentUser.id) || currentUser} transactions={transactions} saveDoc={saveDoc} deleteDoc={deleteDocRef} onLogout={() => { setCurrentUser(null); setAppState('splash'); }} toggleTheme={toggleTheme} theme={theme} />}
+                    {appState === 'user' && currentUser && <UserLayout currentUser={users.find(u => u.id === currentUser.id) || currentUser} users={users} transactions={transactions} saveDoc={saveDoc} deleteDoc={deleteDocRef} onLogout={() => { setCurrentUser(null); setAppState('splash'); }} toggleTheme={toggleTheme} theme={theme} />}
                     
                     {appState === 'admin' && <AdminLayout users={users} transactions={transactions} saveDoc={saveDoc} deleteDoc={deleteDocRef} onLogout={() => setAppState('splash')} toggleTheme={toggleTheme} theme={theme} />}
                 </div>
@@ -279,14 +392,24 @@
                         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                             <div>
                                 <label className="text-xs font-semibold text-gray-500 uppercase">Username</label>
-                                <input type="text" value={username} onChange={e=>setUsername(e.target.value)} className="w-full mt-1 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 border-none focus:ring-2 focus:ring-brandGreen outline-none" placeholder="Masukkan username" />
+                                <div className="relative mt-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <UserImageIcon />
+                                    </div>
+                                    <input type="text" value={username} onChange={e=>setUsername(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 border-none focus:ring-2 focus:ring-brandGreen outline-none text-sm md:text-base" placeholder="Masukkan username" />
+                                </div>
                             </div>
-                            <div className="relative">
+                            <div>
                                 <label className="text-xs font-semibold text-gray-500 uppercase">Password</label>
-                                <input type={showPass ? 'text' : 'password'} value={password} onChange={e=>setPassword(e.target.value)} className="w-full mt-1 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 border-none focus:ring-2 focus:ring-brandGreen outline-none" placeholder="Masukkan password" />
-                                <button type="button" onClick={()=>setShowPass(!showPass)} className="absolute right-3 top-9 text-gray-400">
-                                    <i className={`fas ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                                </button>
+                                <div className="relative mt-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <PasswordImageIcon />
+                                    </div>
+                                    <input type={showPass ? 'text' : 'password'} value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-3 pl-10 pr-10 rounded-xl bg-gray-100 dark:bg-gray-800 border-none focus:ring-2 focus:ring-brandGreen outline-none text-sm md:text-base" placeholder="Masukkan password" />
+                                    <button type="button" onClick={()=>setShowPass(!showPass)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition">
+                                        <i className={`fas ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                    </button>
+                                </div>
                             </div>
                             <button type="submit" className="w-full py-3 mt-2 rounded-xl bg-brandGreen text-white font-bold shadow-md hover:bg-emerald-600 transition">
                                 Masuk
@@ -300,6 +423,7 @@
         function AdminAuthModal({ onLogin, onBack }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
+            const [showPass, setShowPass] = useState(false);
             const [error, setError] = useState('');
 
             const handleLogin = (e) => {
@@ -311,13 +435,26 @@
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-white dark:bg-darkCard w-full max-w-sm rounded-3xl p-6 shadow-2xl relative border-t-4 border-brandRed">
-                         <button onClick={onBack} className="absolute top-4 left-4 text-gray-500"><i className="fas fa-times"></i></button>
+                         <button onClick={onBack} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800 dark:hover:text-white transition"><i className="fas fa-times"></i></button>
                         <h2 className="text-xl font-bold text-center mb-6 text-brandRed"><i className="fas fa-shield-alt mr-2"></i>Login Admin</h2>
-                        {error && <div className="bg-red-100 text-red-600 p-2 rounded text-sm mb-4 text-center">{error}</div>}
-                        <form onSubmit={handleLogin} className="flex flex-col gap-3">
-                            <input type="text" value={username} onChange={e=>setUsername(e.target.value)} className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none" placeholder="Admin Username" />
-                            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none" placeholder="Admin Password" />
-                            <button className="py-3 rounded-xl bg-brandRed text-white font-bold">Akses Sistem</button>
+                        {error && <div className="bg-red-100 text-red-600 p-2 rounded text-sm mb-4 text-center animate-shake">{error}</div>}
+                        <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <UserImageIcon />
+                                </div>
+                                <input type="text" value={username} onChange={e=>setUsername(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-brandRed border-none text-sm md:text-base" placeholder="Admin Username" />
+                            </div>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <PasswordImageIcon />
+                                </div>
+                                <input type={showPass ? 'text' : 'password'} value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-3 pl-10 pr-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none focus:ring-2 focus:ring-brandRed border-none text-sm md:text-base" placeholder="Admin Password" />
+                                <button type="button" onClick={()=>setShowPass(!showPass)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition">
+                                    <i className={`fas ${showPass ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                </button>
+                            </div>
+                            <button className="py-3 mt-2 rounded-xl bg-brandRed text-white font-bold shadow-md hover:bg-red-600 transition">Akses Sistem</button>
                         </form>
                     </div>
                 </div>
@@ -327,12 +464,16 @@
         // ==========================================
         // USER LAYOUT & VIEWS
         // ==========================================
-        function UserLayout({ currentUser, transactions, saveDoc, deleteDoc, onLogout, toggleTheme, theme }) {
+        function UserLayout({ currentUser, users, transactions, saveDoc, deleteDoc, onLogout, toggleTheme, theme }) {
             const [activeTab, setActiveTab] = useState('beranda');
             const [showGlobalModal, setShowGlobalModal] = useState(false);
             const [globalTxType, setGlobalTxType] = useState('income');
             
-            const userTx = useMemo(() => transactions.filter(t => t.userId === currentUser.id), [transactions, currentUser.id]);
+            const isReadOnly = currentUser.role === 'anggota';
+            const activeUserId = isReadOnly ? currentUser.parentId : currentUser.id;
+            const activeUserDoc = users.find(u => u.id === activeUserId) || currentUser;
+
+            const userTx = useMemo(() => transactions.filter(t => t.userId === activeUserId), [transactions, activeUserId]);
 
             const stats = useMemo(() => {
                 let balance = 0, income = 0, expense = 0, tabungan = 0, pinjaman = 0, nonTabunganExpense = 0;
@@ -356,9 +497,12 @@
                 { id: 'beranda', icon: 'fa-home', label: 'Beranda' },
                 { id: 'riwayat', icon: 'fa-receipt', label: 'Riwayat' },
                 { id: 'target', icon: 'fa-bullseye', label: 'Target' },
-                { id: 'brankas', icon: 'fa-vault', label: 'Brankas' },
-                { id: 'pengaturan', icon: 'fa-cog', label: 'Pengaturan' },
+                { id: 'brankas', icon: 'fa-vault', label: isReadOnly ? 'Tabungan' : 'Brankas' },
             ];
+            
+            if (!isReadOnly) {
+                tabs.push({ id: 'pengaturan', icon: 'fa-cog', label: 'Pengaturan' });
+            }
 
             return (
                 <div className="flex h-screen overflow-hidden">
@@ -385,16 +529,27 @@
                                 <img src="https://iili.io/C9EsjQS.png" alt="Logo" className="w-10 h-10 object-contain drop-shadow-md" />
                                 <div>
                                     <p className="text-xs text-gray-500 font-medium">Selamat Datang,</p>
-                                    <h2 className="text-sm md:text-base font-bold capitalize">{currentUser.username}</h2>
+                                    <h2 className="text-sm md:text-base font-bold capitalize flex flex-wrap items-center gap-2">
+                                        {currentUser.username}
+                                        {isReadOnly && (
+                                            <span className="text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-md align-middle shadow-sm">
+                                                <i className="fas fa-eye mr-1"></i>Memantau: {activeUserDoc.username}
+                                            </span>
+                                        )}
+                                    </h2>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 md:gap-4">
-                                <button onClick={() => { setGlobalTxType('income'); setShowGlobalModal(true); }} className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-sm text-brandGreen hover:scale-110 transition shadow-sm shrink-0" title="Tambah Pemasukan">
-                                    <i className="fas fa-plus"></i>
-                                </button>
-                                <button onClick={() => { setGlobalTxType('expense'); setShowGlobalModal(true); }} className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-sm text-brandRed hover:scale-110 transition shadow-sm shrink-0" title="Tambah Pengeluaran">
-                                    <i className="fas fa-minus"></i>
-                                </button>
+                                {!isReadOnly && (
+                                    <>
+                                        <button onClick={() => { setGlobalTxType('income'); setShowGlobalModal(true); }} className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-sm text-brandGreen hover:scale-110 transition shadow-sm shrink-0" title="Tambah Pemasukan">
+                                            <i className="fas fa-plus"></i>
+                                        </button>
+                                        <button onClick={() => { setGlobalTxType('expense'); setShowGlobalModal(true); }} className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-sm text-brandRed hover:scale-110 transition shadow-sm shrink-0" title="Tambah Pengeluaran">
+                                            <i className="fas fa-minus"></i>
+                                        </button>
+                                    </>
+                                )}
                                 <button onClick={toggleTheme} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-sm transition hover:scale-110 shrink-0">
                                     <i className={`fas ${theme === 'dark' ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-400'}`}></i>
                                 </button>
@@ -406,14 +561,12 @@
 
                         {/* Scrollable Content Area */}
                         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-                            {activeTab === 'beranda' && <UserBeranda stats={stats} userTx={userTx} currentUser={currentUser} saveDoc={saveDoc} />}
-                            {activeTab === 'riwayat' && <UserRiwayat userTx={userTx} deleteDoc={deleteDoc} saveDoc={saveDoc} currentUser={currentUser} />}
-                            {activeTab === 'target' && <UserTarget currentUser={currentUser} stats={stats} saveDoc={saveDoc} />}
-                            {activeTab === 'brankas' && <UserBrankas stats={stats} userTx={userTx} saveDoc={saveDoc} />}
-                            {activeTab === 'pengaturan' && <UserPengaturan currentUser={currentUser} saveDoc={saveDoc} userTx={userTx} deleteDoc={deleteDoc} />}
+                            {activeTab === 'beranda' && <UserBeranda stats={stats} userTx={userTx} userData={activeUserDoc} saveDoc={saveDoc} isReadOnly={isReadOnly} />}
+                            {activeTab === 'riwayat' && <UserRiwayat userTx={userTx} deleteDoc={deleteDoc} saveDoc={saveDoc} userData={activeUserDoc} isReadOnly={isReadOnly} />}
+                            {activeTab === 'target' && <UserTarget userData={activeUserDoc} stats={stats} saveDoc={saveDoc} isReadOnly={isReadOnly} />}
+                            {activeTab === 'brankas' && <UserBrankas stats={stats} userTx={userTx} saveDoc={saveDoc} isReadOnly={isReadOnly} />}
+                            {!isReadOnly && activeTab === 'pengaturan' && <UserPengaturan currentUser={currentUser} saveDoc={saveDoc} userTx={userTx} deleteDoc={deleteDoc} />}
                         </main>
-                        
-                        {showGlobalModal && <TransactionModal type={globalTxType} onClose={() => setShowGlobalModal(false)} currentUser={currentUser} saveDoc={saveDoc} />}
                     </div>
 
                     {/* Mobile Bottom Nav */}
@@ -430,7 +583,7 @@
         }
 
         // --- Beranda ---
-        function UserBeranda({ stats, userTx, currentUser, saveDoc }) {
+        function UserBeranda({ stats, userTx, userData, saveDoc, isReadOnly }) {
             const [showModal, setShowModal] = useState(false);
             const [txType, setTxType] = useState('income');
 
@@ -472,7 +625,7 @@
 
             const recentTx = useMemo(() => [...userTx].sort((a,b) => b.timestamp - a.timestamp).slice(0,5), [userTx]);
             
-            const targetPrice = Number(currentUser.targetPrice) || 1;
+            const targetPrice = Number(userData.targetPrice) || 1;
             const progress = Math.min(100, Math.max(0, (stats.tabungan / targetPrice) * 100));
 
             return (
@@ -505,7 +658,7 @@
                             <div>
                                 <h4 className="font-bold text-sm uppercase tracking-wide mb-1 animate-blink text-brandRed">Peringatan Kritis!</h4>
                                 <p className="text-xs text-red-800 dark:text-red-200 leading-relaxed">
-                                    Halo <span className="font-black uppercase">{currentUser.username}</span>! Pengeluaran bulan ini sudah menembus <span className="font-bold bg-brandRed text-white px-1 rounded">80% dari pemasukan</span> bulan ini. Jika tidak direm sekarang, target impian <span className="underline font-bold">"{currentUser.targetName}"</span> kamu bisa tertunda sangat lama! Yuk tahan nafsu belanjamu.
+                                    Halo <span className="font-black uppercase">{userData.username}</span>! Pengeluaran bulan ini sudah menembus <span className="font-bold bg-brandRed text-white px-1 rounded">80% dari pemasukan</span> bulan ini. Jika tidak direm sekarang, target impian <span className="underline font-bold">"{userData.targetName}"</span> kamu bisa tertunda sangat lama! Yuk tahan nafsu belanjamu.
                                 </p>
                             </div>
                         </div>
@@ -513,7 +666,7 @@
 
                     <div className="bg-white dark:bg-darkCard rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
                         <div className="flex justify-between items-center mb-2">
-                            <p className="text-xs font-bold text-gray-500 uppercase">Target: {currentUser.targetName}</p>
+                            <p className="text-xs font-bold text-gray-500 uppercase">Target: {userData.targetName}</p>
                             <p className="text-xs font-bold text-brandGreen">{progress.toFixed(1)}%</p>
                         </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
@@ -521,14 +674,16 @@
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 md:gap-4">
-                        <button onClick={() => {setTxType('income'); setShowModal(true)}} className="bg-brandGreen text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandGreen/20 hover:bg-emerald-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
-                            <i className="fas fa-plus-circle"></i> Pemasukan
-                        </button>
-                        <button onClick={() => {setTxType('expense'); setShowModal(true)}} className="bg-brandRed text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandRed/20 hover:bg-red-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
-                            <i className="fas fa-minus-circle"></i> Pengeluaran
-                        </button>
-                    </div>
+                    {!isReadOnly && (
+                        <div className="grid grid-cols-2 gap-3 md:gap-4">
+                            <button onClick={() => {setTxType('income'); setShowModal(true)}} className="bg-brandGreen text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandGreen/20 hover:bg-emerald-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
+                                <i className="fas fa-plus-circle"></i> Pemasukan
+                            </button>
+                            <button onClick={() => {setTxType('expense'); setShowModal(true)}} className="bg-brandRed text-white py-2.5 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-lg shadow-brandRed/20 hover:bg-red-600 active:scale-95 transition flex items-center justify-center gap-2 text-xs md:text-base">
+                                <i className="fas fa-minus-circle"></i> Pengeluaran
+                            </button>
+                        </div>
+                    )}
 
                     <div>
                         <h3 className="text-sm font-bold text-gray-500 uppercase mb-3 px-1">Transaksi Terakhir</h3>
@@ -553,14 +708,12 @@
                         </div>
                     </div>
 
-                    {showModal && <TransactionModal type={txType} onClose={() => setShowModal(false)} currentUser={currentUser} saveDoc={saveDoc} />}
+                    {showModal && !isReadOnly && <TransactionModal type={txType} onClose={() => setShowModal(false)} userData={userData} saveDoc={saveDoc} />}
                 </div>
             );
         }
 
-        // Diubah: Memastikan posisi modal form input paten/permanen berada di atas layar hanya pada perangkat mobile layar portrait (items-start pt-12).
-        // Pada layar tablet/desktop maupun landscape, posisinya akan tetap simetris di tengah-tengah layar (md:items-center md:pt-0).
-        function TransactionModal({ type, onClose, currentUser, saveDoc, initialData }) {
+        function TransactionModal({ type, onClose, userData, saveDoc, initialData }) {
             const [amount, setAmount] = useState(initialData ? initialData.amount.toString() : '');
             const [name, setName] = useState(initialData ? initialData.name : '');
             const [date, setDate] = useState(initialData ? initialData.date : new Date().toISOString().split('T')[0]);
@@ -580,7 +733,7 @@
                 
                 const tx = {
                     id: isEditing ? initialData.id : generateId(),
-                    userId: currentUser.id,
+                    userId: userData.id,
                     type: activeType,
                     category,
                     name,
@@ -595,35 +748,55 @@
             };
 
             return (
-                <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 md:items-center md:pt-0 bg-black/60 backdrop-blur-sm overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
                     <div className={`bg-white dark:bg-darkCard w-full md:max-w-md rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-2xl animate-fade-in border-t-4 ${activeType === 'income' ? 'border-brandGreen' : 'border-brandRed'}`}>
                         <div className="flex justify-between items-center mb-6">
                             <h2 className={`text-lg md:text-xl font-bold ${activeType === 'income' ? 'text-brandGreen' : 'text-brandRed'}`}>
                                 {isEditing ? 'Edit Transaksi' : `Input ${activeType === 'income' ? 'Pemasukan' : 'Pengeluaran'}`}
                             </h2>
-                            <button onClick={onClose} className="text-gray-400 hover:text-gray-800"><i className="fas fa-times text-lg md:text-xl"></i></button>
+                            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-800"><i className="fas fa-times text-lg md:text-xl"></i></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Nama Transaksi</label>
-                                <input type="text" value={name} onChange={e=>setName(e.target.value)} className={`w-full p-3 md:p-4 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm md:text-base font-bold outline-none focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="Misal: Gaji, Makan, dll" required />
+                                <div className="relative mt-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <TransactionNameImageIcon />
+                                    </div>
+                                    <input type="text" value={name} onChange={e=>setName(e.target.value)} className={`w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm md:text-base font-bold outline-none focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="Misal: Gaji, Makan, dll" required />
+                                </div>
                             </div>
                             <div>
                                 <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Nominal (Rp)</label>
-                                <input type="text" inputMode="numeric" value={amount ? formatRp(amount).replace('Rp', '').trim() : ''} onChange={handleAmountChange} className="w-full p-2.5 md:p-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-lg md:text-xl font-bold text-right outline-none text-gray-700 dark:text-gray-200" placeholder="0" required />
+                                <div className="relative mt-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <NominalImageIcon />
+                                    </div>
+                                    <input type="text" inputMode="numeric" value={amount ? formatRp(amount).replace('Rp', '').trim() : ''} onChange={handleAmountChange} className={`w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 text-lg md:text-xl font-bold text-right outline-none text-gray-700 dark:text-gray-200 focus:ring-2 ${activeType === 'income' ? 'focus:ring-brandGreen' : 'focus:ring-brandRed'}`} placeholder="0" required />
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Tanggal</label>
-                                    <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 md:p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm" required />
+                                    <div className="relative mt-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <TanggalImageIcon />
+                                        </div>
+                                        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm" required />
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="text-[10px] md:text-xs text-gray-500 font-bold uppercase block mb-1">Kategori</label>
-                                    <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full p-2.5 md:p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm appearance-none">
-                                        <option>Umum</option>
-                                        <option>Tabungan</option>
-                                        <option>Pinjaman</option>
-                                    </select>
+                                    <div className="relative mt-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <KategoriImageIcon />
+                                        </div>
+                                        <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full p-2.5 pl-10 md:p-3 md:pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-xs md:text-sm appearance-none cursor-pointer">
+                                            <option>Umum</option>
+                                            <option>Tabungan</option>
+                                            <option>Pinjaman</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <button type="submit" className={`w-full py-3 md:py-4 mt-2 rounded-xl text-white font-bold text-sm md:text-lg shadow-lg transition ${activeType === 'income' ? 'bg-brandGreen hover:bg-emerald-600' : 'bg-brandRed hover:bg-red-600'}`}>
@@ -635,10 +808,8 @@
             );
         }
 
-        // --- Riwayat ---
-        // Diubah: Merapatkan tombol Edit & Hapus dengan menggunakan flex-row yang rapat tanpa gap berlebihan (gap-1) dan padding minimalis (p-1)
-        // agar kedua tombol sejajar dan pas tanpa jeda spasial yang mencolok.
-        function UserRiwayat({ userTx, deleteDoc, saveDoc, currentUser }) {
+        // --- Riwayat (Menggunakan Ikon Cari Nama & Tanggal Berupa Gambar Vektor Baru) ---
+        function UserRiwayat({ userTx, deleteDoc, saveDoc, userData, isReadOnly }) {
             const [filterTab, setFilterTab] = useState('semua');
             const [searchDate, setSearchDate] = useState('');
             const [searchName, setSearchName] = useState('');
@@ -677,7 +848,7 @@
                 });
 
                 doc.setFont("helvetica", "bold");
-                doc.text("Laporan Riwayat Transaksi - Family Money", 14, 15);
+                doc.text(`Laporan Riwayat Transaksi - ${userData.username}`, 14, 15);
                 
                 const tableData = filteredTx.map((t, i) => [
                     i+1, 
@@ -698,7 +869,7 @@
                     footStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39], fontStyle: 'bold' }
                 });
                 
-                doc.save(`Riwayat_Family_Money_${new Date().getTime()}.pdf`);
+                doc.save(`Riwayat_${userData.username}_${new Date().getTime()}.pdf`);
             };
 
             return (
@@ -727,8 +898,21 @@
                     </div>
 
                     <div className="flex gap-2">
-                        <input type="date" value={searchDate} onChange={e=>setSearchDate(e.target.value)} className="p-2 md:p-3 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 text-xs md:text-sm outline-none w-1/3" />
-                        <input type="text" placeholder="Cari nama..." value={searchName} onChange={e=>setSearchName(e.target.value)} className="p-2 md:p-3 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 text-xs md:text-sm outline-none flex-1" />
+                        {/* Input Tanggal dengan Ikon Gambar Vektor */}
+                        <div className="relative w-1/3">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <TanggalImageIcon />
+                            </div>
+                            <input type="date" value={searchDate} onChange={e=>setSearchDate(e.target.value)} className="w-full p-2 md:p-3 pl-10 md:pl-10 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 text-xs md:text-sm outline-none" />
+                        </div>
+                        
+                        {/* Input Cari Nama dengan Ikon Gambar Vektor */}
+                        <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <SearchImageIcon />
+                            </div>
+                            <input type="text" placeholder="Cari nama..." value={searchName} onChange={e=>setSearchName(e.target.value)} className="w-full p-2 md:p-3 pl-10 md:pl-10 rounded-xl bg-white dark:bg-darkCard border border-gray-200 dark:border-gray-800 text-xs md:text-sm outline-none" />
+                        </div>
                     </div>
 
                     <div className="bg-white dark:bg-darkCard rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
@@ -748,15 +932,16 @@
                                                 <span className={`font-bold text-sm md:text-base ${tx.type === 'income' ? 'text-brandGreen' : 'text-brandRed'} mr-2`}>
                                                     {tx.type === 'income' ? '+' : '-'}{formatRp(tx.amount)}
                                                 </span>
-                                                {/* Tombol aksi minimalis dirapatkan (flex-row dengan gap-0.5) */}
-                                                <div className="flex items-center gap-0.5">
-                                                    <button onClick={() => setEditTx(tx)} className="text-blue-500 hover:text-blue-600 transition p-1 flex items-center justify-center" title="Edit">
-                                                        <i className="fas fa-edit text-lg"></i>
-                                                    </button>
-                                                    <button onClick={() => setDeleteTxConfirm(tx)} className="text-brandRed hover:text-red-600 transition p-1 flex items-center justify-center" title="Hapus">
-                                                        <i className="fas fa-trash-alt text-lg"></i>
-                                                    </button>
-                                                </div>
+                                                {!isReadOnly && (
+                                                    <div className="flex items-center gap-0.5">
+                                                        <button onClick={() => setEditTx(tx)} className="text-blue-500 hover:text-blue-600 transition p-1 flex items-center justify-center" title="Edit">
+                                                            <i className="fas fa-edit text-lg"></i>
+                                                        </button>
+                                                        <button onClick={() => setDeleteTxConfirm(tx)} className="text-brandRed hover:text-red-600 transition p-1 flex items-center justify-center" title="Hapus">
+                                                            <i className="fas fa-trash-alt text-lg"></i>
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </li>
                                     ))}
@@ -769,7 +954,7 @@
                         </div>
                     </div>
 
-                    {deleteTxConfirm && (
+                    {deleteTxConfirm && !isReadOnly && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
                             <div className="bg-white dark:bg-darkCard w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-brandRed/20 text-center">
                                 <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 text-brandRed flex items-center justify-center text-2xl mx-auto mb-4">
@@ -785,22 +970,22 @@
                         </div>
                     )}
 
-                    {editTx && (
-                        <TransactionModal type={editTx.type} initialData={editTx} onClose={() => setEditTx(null)} currentUser={currentUser} saveDoc={saveDoc} />
+                    {editTx && !isReadOnly && (
+                        <TransactionModal type={editTx.type} initialData={editTx} onClose={() => setEditTx(null)} userData={userData} saveDoc={saveDoc} />
                     )}
                 </div>
             );
         }
 
-        // --- Target ---
-        function UserTarget({ currentUser, stats, saveDoc }) {
+        // --- Target (Menggunakan Ikon Target & Harga Nominal Berupa Gambar Vektor Baru) ---
+        function UserTarget({ userData, stats, saveDoc, isReadOnly }) {
             const [isEditing, setIsEditing] = useState(false);
-            const [name, setName] = useState(currentUser.targetName);
-            const [price, setPrice] = useState(currentUser.targetPrice);
+            const [name, setName] = useState(userData.targetName);
+            const [price, setPrice] = useState(userData.targetPrice);
 
             const handleEditClick = () => {
-                setName(currentUser.targetName);
-                setPrice(currentUser.targetPrice);
+                setName(userData.targetName);
+                setPrice(userData.targetPrice);
                 setIsEditing(true);
             };
 
@@ -810,11 +995,11 @@
             };
 
             const handleSave = async () => {
-                await saveDoc('users', currentUser.id, { targetName: name, targetPrice: Number(price) });
+                await saveDoc('users', userData.id, { targetName: name, targetPrice: Number(price) });
                 setIsEditing(false);
             };
 
-            const targetVal = Number(currentUser.targetPrice) || 1;
+            const targetVal = Number(userData.targetPrice) || 1;
             const tabungan = stats.tabungan;
             const kurang = Math.max(0, targetVal - tabungan);
             const percent = Math.min(100, Math.max(0, (tabungan / targetVal) * 100));
@@ -840,16 +1025,26 @@
                             </div>
                         </div>
 
-                        {isEditing ? (
+                        {isEditing && !isReadOnly ? (
                             <div className="space-y-3 mb-4 text-left">
-                                <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm outline-none" placeholder="Nama Target" />
-                                <input type="text" inputMode="numeric" value={price ? formatRp(price).replace('Rp', '').trim() : ''} onChange={handlePriceChange} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm outline-none" placeholder="Harga Target" />
-                                <button onClick={handleSave} className="w-full bg-brandGreen text-white py-2 rounded-lg font-bold text-sm">Simpan</button>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <TargetNameImageIcon />
+                                    </div>
+                                    <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-2.5 pl-10 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm outline-none border border-transparent focus:border-brandGreen" placeholder="Nama Target" />
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <NominalImageIcon />
+                                    </div>
+                                    <input type="text" inputMode="numeric" value={price ? formatRp(price).replace('Rp', '').trim() : ''} onChange={handlePriceChange} className="w-full p-2.5 pl-10 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm outline-none border border-transparent focus:border-brandGreen" placeholder="Harga Target" />
+                                </div>
+                                <button type="button" onClick={handleSave} className="w-full bg-brandGreen text-white py-2.5 rounded-lg font-bold text-sm shadow-md hover:bg-emerald-600 transition">Simpan</button>
                             </div>
                         ) : (
                             <div className="mb-4">
-                                <h3 className="text-2xl font-bold uppercase tracking-wider">{currentUser.targetName}</h3>
-                                <p className="text-gray-500 font-medium">{formatRp(currentUser.targetPrice)}</p>
+                                <h3 className="text-2xl font-bold uppercase tracking-wider">{userData.targetName}</h3>
+                                <p className="text-gray-500 font-medium">{formatRp(userData.targetPrice)}</p>
                             </div>
                         )}
 
@@ -864,18 +1059,22 @@
                             </div>
                         </div>
 
-                        {!isEditing && (
-                            <button onClick={handleEditClick} className="mt-4 text-xs text-blue-500 underline"><i className="fas fa-edit"></i> Edit Target</button>
+                        {!isEditing && !isReadOnly && (
+                            <button type="button" onClick={handleEditClick} className="mt-4 text-xs text-blue-500 underline"><i className="fas fa-edit"></i> Edit Target</button>
                         )}
                     </div>
                 </div>
             );
         }
 
-        // --- Brankas ---
-        function UserBrankas({ stats, userTx, saveDoc }) {
+        // --- Brankas / Tabungan ---
+        function UserBrankas({ stats, userTx, saveDoc, isReadOnly }) {
             const [tab, setTab] = useState('tabungan');
             const [deleteTxConfirm, setDeleteTxConfirm] = useState(null);
+            
+            useEffect(() => {
+                if (isReadOnly) setTab('tabungan');
+            }, [isReadOnly]);
             
             const listData = useMemo(() => {
                 let raw = userTx.filter(t => t.category.toLowerCase() === tab);
@@ -893,21 +1092,23 @@
             
             return (
                 <div className="animate-fade-in max-w-4xl mx-auto space-y-6">
-                    <div className="flex bg-gray-200 dark:bg-gray-800 p-1 rounded-2xl w-full max-w-sm mx-auto">
-                        <button onClick={() => setTab('tabungan')} className={`flex-1 py-3 rounded-xl text-sm font-bold transition ${isTabungan ? 'bg-white dark:bg-gray-600 shadow text-brandGreen' : 'text-gray-500'}`}>Tabungan</button>
-                        <button onClick={() => setTab('pinjaman')} className={`flex-1 py-3 rounded-xl text-sm font-bold transition ${!isTabungan ? 'bg-white dark:bg-gray-600 shadow text-brandYellow' : 'text-gray-500'}`}>Pinjaman</button>
-                    </div>
+                    {!isReadOnly && (
+                        <div className="flex bg-gray-200 dark:bg-gray-800 p-1 rounded-2xl w-full max-w-sm mx-auto">
+                            <button onClick={() => setTab('tabungan')} className={`flex-1 py-3 rounded-xl text-sm font-bold transition ${isTabungan ? 'bg-white dark:bg-gray-600 shadow text-brandGreen' : 'text-gray-500'}`}>Tabungan</button>
+                            <button onClick={() => setTab('pinjaman')} className={`flex-1 py-3 rounded-xl text-sm font-bold transition ${!isTabungan ? 'bg-white dark:bg-gray-600 shadow text-brandYellow' : 'text-gray-500'}`}>Pinjaman</button>
+                        </div>
+                    )}
 
                     <div className={`relative ${isTabungan ? 'bg-emerald-900' : 'bg-yellow-900'} rounded-3xl p-6 md:p-8 shadow-xl overflow-hidden text-white`}>
                         <i className={`fas ${isTabungan ? 'fa-piggy-bank' : 'fa-hand-holding-usd'} absolute -right-4 -bottom-4 text-9xl opacity-20`}></i>
-                        <p className="text-xs md:text-sm font-medium opacity-80 mb-1">Sisa Saldo {isTabungan ? 'Tabungan' : 'Pinjaman'}</p>
+                        <p className="text-xs md:text-sm font-medium opacity-80 mb-1">Sisa Saldo {isReadOnly ? 'Tabungan' : (isTabungan ? 'Tabungan' : 'Pinjaman')}</p>
                         <h1 className="text-3xl md:text-5xl font-black mb-2">{formatRp(isTabungan ? stats.tabungan : stats.pinjaman)}</h1>
-                        <p className="text-[10px] md:text-xs opacity-70 italic">*Dihitung otomatis berdasarkan transaksi kategori {isTabungan ? 'Tabungan' : 'Pinjaman'} di Beranda.</p>
+                        <p className="text-[10px] md:text-xs opacity-70 italic">*Dihitung otomatis berdasarkan transaksi kategori {isReadOnly ? 'Tabungan' : (isTabungan ? 'Tabungan' : 'Pinjaman')} di Beranda.</p>
                     </div>
 
                     <div className="bg-white dark:bg-darkCard rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
                         <div className="p-3 md:p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
-                            <h3 className="font-bold text-xs md:text-sm uppercase">Riwayat Permanen {isTabungan ? 'Tabungan' : 'Pinjaman'}</h3>
+                            <h3 className="font-bold text-xs md:text-sm uppercase">Riwayat Permanen {isReadOnly ? 'Tabungan' : (isTabungan ? 'Tabungan' : 'Pinjaman')}</h3>
                         </div>
                         <div className="max-h-[60vh] overflow-y-auto p-2 md:p-4 space-y-2 bg-gray-50/30 dark:bg-darkBg/30">
                             {listData.length === 0 ? <p className="p-6 text-center text-gray-400 text-xs">Belum ada data riwayat.</p> : 
@@ -922,14 +1123,16 @@
                                             <p className="text-[10px] text-gray-400">{tx.date}</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 md:gap-4 shrink-0">
-                                        <span className={`font-bold text-xs md:text-base ${isVaultIncome ? 'text-brandGreen' : 'text-brandRed'}`}>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`font-bold text-xs md:text-base ${isVaultIncome ? 'text-brandGreen' : 'text-brandRed'} mr-1`}>
                                             {isVaultIncome ? '+' : '-'}{formatRp(tx.amount)}
                                         </span>
-                                        {!isTabungan && (
-                                            <button onClick={() => setDeleteTxConfirm(tx)} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-red-100 text-brandRed hover:bg-red-200 transition flex items-center justify-center">
-                                                <i className="fas fa-trash-alt text-[10px] md:text-xs"></i>
-                                            </button>
+                                        {!isTabungan && !isReadOnly && (
+                                            <div className="flex items-center gap-0.5">
+                                                <button type="button" onClick={() => setDeleteTxConfirm(tx)} className="text-brandRed hover:text-red-600 transition p-1 flex items-center justify-center" title="Hapus">
+                                                    <i className="fas fa-trash-alt text-lg"></i>
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -938,7 +1141,7 @@
                         </div>
                     </div>
 
-                    {deleteTxConfirm && (
+                    {deleteTxConfirm && !isReadOnly && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
                             <div className="bg-white dark:bg-darkCard w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-brandRed/20 text-center">
                                 <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 text-brandRed flex items-center justify-center text-2xl mx-auto mb-4">
@@ -947,8 +1150,8 @@
                                 <h3 className="text-lg font-bold mb-2">Sembunyikan Riwayat?</h3>
                                 <p className="text-sm text-gray-500 mb-6">Yakin ingin menyembunyikan riwayat transaksi <span className="font-bold text-gray-800 dark:text-white">"{deleteTxConfirm.name}"</span>? Tindakan ini tidak mengubah nominal ringkasan saldo Anda.</p>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setDeleteTxConfirm(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
-                                    <button onClick={handleDeletePinjaman} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Sembunyikan</button>
+                                    <button type="button" onClick={() => setDeleteTxConfirm(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
+                                    <button type="button" onClick={handleDeletePinjaman} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Sembunyikan</button>
                                 </div>
                             </div>
                         </div>
@@ -957,7 +1160,7 @@
             );
         }
 
-        // --- Pengaturan ---
+        // --- Pengaturan (Menggunakan Ikon Nama & Password Berupa Gambar Vektor Baru) ---
         function UserPengaturan({ currentUser, saveDoc, userTx, deleteDoc }) {
             const [name, setName] = useState(currentUser.username);
             const [pass, setPass] = useState(currentUser.password);
@@ -988,22 +1191,31 @@
                     <div className="bg-white dark:bg-darkCard p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-4">
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ubah Nama</label>
-                            <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none" />
+                            <div className="relative mt-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <UserImageIcon />
+                                </div>
+                                <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none border border-transparent focus:border-brandGreen" />
+                            </div>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ubah Password</label>
-                            <input type="text" value={pass} onChange={e=>setPass(e.target.value)} className="w-full p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none" />
+                            <div className="relative mt-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <PasswordImageIcon />
+                                </div>
+                                <input type="text" value={pass} onChange={e=>setPass(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none border border-transparent focus:border-brandGreen" />
+                            </div>
                         </div>
-                        <button onClick={handleSave} className="w-full py-3 bg-brandGreen text-white rounded-xl font-bold shadow-md hover:bg-emerald-600 transition">Simpan Perubahan</button>
+                        <button type="button" onClick={handleSave} className="w-full py-3 bg-brandGreen text-white rounded-xl font-bold shadow-md hover:bg-emerald-600 transition">Simpan Perubahan</button>
                     </div>
 
                     <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/30">
                         <h3 className="font-bold text-brandRed mb-2"><i className="fas fa-exclamation-triangle mr-2"></i>Zona Berbahaya</h3>
                         <p className="text-xs text-gray-500 mb-4">Menghapus semua riwayat akan mereset saldo Anda menjadi 0. Tindakan ini tidak dapat dibatalkan.</p>
-                        <button onClick={() => setShowDeleteConfirm(true)} className="w-full py-3 bg-brandRed text-white rounded-xl font-bold shadow-md hover:bg-red-600 transition">Hapus Semua Riwayat</button>
+                        <button type="button" onClick={() => setShowDeleteConfirm(true)} className="w-full py-3 bg-brandRed text-white rounded-xl font-bold shadow-md hover:bg-red-600 transition">Hapus Semua Riwayat</button>
                     </div>
 
-                    {/* Modal Konfirmasi Hapus Semua Riwayat */}
                     {showDeleteConfirm && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
                             <div className="bg-white dark:bg-darkCard w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-brandRed/20 text-center">
@@ -1013,8 +1225,8 @@
                                 <h3 className="text-lg font-bold mb-2">Hapus Semua Riwayat?</h3>
                                 <p className="text-sm text-gray-500 mb-6">Yakin ingin menghapus semua riwayat transaksi Anda? Data di Cloud akan hilang permanen dan saldo Anda di-reset ke Rp 0.</p>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
-                                    <button onClick={handleDeleteHistory} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Hapus Semua</button>
+                                    <button type="button" onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
+                                    <button type="button" onClick={handleDeleteHistory} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Hapus Semua</button>
                                 </div>
                             </div>
                         </div>
@@ -1064,10 +1276,10 @@
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 md:gap-4">
-                                <button onClick={toggleTheme} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-sm">
+                                <button type="button" onClick={toggleTheme} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-sm">
                                     <i className={`fas ${theme === 'dark' ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-400'}`}></i>
                                 </button>
-                                <button onClick={onLogout} className="text-brandRed hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg text-sm font-semibold transition">
+                                <button type="button" onClick={onLogout} className="text-brandRed hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg text-sm font-semibold transition shrink-0">
                                     <i className="fas fa-sign-out-alt md:mr-2"></i><span className="hidden md:inline">Keluar</span>
                                 </button>
                             </div>
@@ -1155,8 +1367,18 @@
                         <div className="p-3 md:p-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between md:items-center gap-3">
                             <h3 className="font-bold uppercase text-xs md:text-sm">Semua Transaksi</h3>
                             <div className="flex gap-2">
-                                <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} className="p-2 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto" />
-                                <input type="text" placeholder="Cari nama user..." value={filterUser} onChange={e=>setFilterUser(e.target.value)} className="p-2 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto" />
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                        <TanggalImageIcon />
+                                    </div>
+                                    <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} className="p-2 pl-9 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto border border-transparent focus:border-brandGreen" />
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                        <SearchImageIcon />
+                                    </div>
+                                    <input type="text" placeholder="Cari nama user..." value={filterUser} onChange={e=>setFilterUser(e.target.value)} className="p-2 pl-9 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto border border-transparent focus:border-brandGreen" />
+                                </div>
                             </div>
                         </div>
                         <div className="max-h-[50vh] overflow-y-auto p-2 md:p-4 space-y-2 bg-gray-50/30 dark:bg-darkBg/30">
@@ -1193,25 +1415,72 @@
             const [showAdd, setShowAdd] = useState(false);
             const [newU, setNewU] = useState('');
             const [newP, setNewP] = useState('');
+            const [isReadOnly, setIsReadOnly] = useState(false);
+            const [parentId, setParentId] = useState('');
+            
             const [visiblePasswords, setVisiblePasswords] = useState({});
             const [deleteTargetUser, setDeleteTargetUser] = useState(null);
+            const [editTargetUser, setEditTargetUser] = useState(null);
+            const [editU, setEditU] = useState('');
+            const [editP, setEditP] = useState('');
+            const [editRole, setEditRole] = useState('utama');
+            const [editParentId, setEditParentId] = useState('');
 
             const handleAdd = async (e) => {
                 e.preventDefault();
                 if(!newU || !newP) return;
+                if(isReadOnly && !parentId) return alert('Silakan pilih User Utama yang ingin dipantau!');
+                
                 const id = generateId();
-                await saveDoc('users', id, { id, username: newU, password: newP, targetName: 'Target', targetPrice: 1000000 });
-                setNewU(''); setNewP(''); setShowAdd(false);
+                await saveDoc('users', id, { 
+                    id, 
+                    username: newU, 
+                    password: newP, 
+                    targetName: 'Target', 
+                    targetPrice: 1000000,
+                    role: isReadOnly ? 'anggota' : 'utama',
+                    parentId: isReadOnly ? parentId : null
+                });
+                setNewU(''); setNewP(''); setIsReadOnly(false); setParentId(''); setShowAdd(false);
             };
 
             const confirmDeleteUser = async () => {
                 if (!deleteTargetUser) return;
+                
+                const children = users.filter(u => u.parentId === deleteTargetUser.id);
+                for(let child of children) {
+                    await deleteDoc('users', child.id);
+                }
                 await deleteDoc('users', deleteTargetUser.id);
+                
                 const userTx = transactions.filter(t => t.userId === deleteTargetUser.id);
                 for(let tx of userTx) {
                     await deleteDoc('transactions', tx.id);
                 }
                 setDeleteTargetUser(null);
+            };
+
+            const handleEditClick = (u) => {
+                setEditTargetUser(u);
+                setEditU(u.username);
+                setEditP(u.password);
+                setEditRole(u.role || 'utama');
+                setEditParentId(u.parentId || '');
+            };
+
+            const confirmEditUser = async (e) => {
+                e.preventDefault();
+                if(!editU || !editP) return;
+                if(editRole === 'anggota' && !editParentId) return alert('Silakan pilih User Utama yang ingin dipantau!');
+                
+                await saveDoc('users', editTargetUser.id, { 
+                    ...editTargetUser,
+                    username: editU, 
+                    password: editP, 
+                    role: editRole,
+                    parentId: editRole === 'anggota' ? editParentId : null
+                });
+                setEditTargetUser(null);
             };
 
             const togglePass = (id) => setVisiblePasswords(prev => ({...prev, [id]: !prev[id]}));
@@ -1226,10 +1495,39 @@
                     </div>
 
                     {showAdd && (
-                        <form onSubmit={handleAdd} className="bg-white dark:bg-darkCard p-4 rounded-xl border border-brandRed/20 flex flex-col sm:flex-row gap-3 animate-fade-in">
-                            <input type="text" placeholder="Username" value={newU} onChange={e=>setNewU(e.target.value)} className="w-full sm:flex-1 p-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs md:text-sm outline-none" required />
-                            <input type="text" placeholder="Password" value={newP} onChange={e=>setNewP(e.target.value)} className="w-full sm:flex-1 p-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs md:text-sm outline-none" required />
-                            <button type="submit" className="w-full sm:w-auto bg-brandGreen text-white px-6 py-2.5 sm:py-0 rounded-lg font-bold text-xs md:text-sm shrink-0">Simpan</button>
+                        <form onSubmit={handleAdd} className="bg-white dark:bg-darkCard p-4 md:p-6 rounded-2xl border border-brandRed/20 animate-fade-in shadow-lg">
+                            <h3 className="font-bold text-sm mb-4 border-b border-gray-100 dark:border-gray-800 pb-2">Buat Akun Baru</h3>
+                            <div className="flex flex-col gap-4">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="relative w-full sm:flex-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <UserImageIcon />
+                                        </div>
+                                        <input type="text" placeholder="Username" value={newU} onChange={e=>setNewU(e.target.value)} className="w-full p-2.5 pl-10 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs md:text-sm outline-none border border-transparent focus:border-brandGreen" required />
+                                    </div>
+                                    <div className="relative w-full sm:flex-1">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <PasswordImageIcon />
+                                        </div>
+                                        <input type="text" placeholder="Password" value={newP} onChange={e=>setNewP(e.target.value)} className="w-full p-2.5 pl-10 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs md:text-sm outline-none border border-transparent focus:border-brandGreen" required />
+                                    </div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 bg-blue-50 dark:bg-blue-900/10 p-2.5 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                                        <input type="checkbox" id="readOnlyCheck" className="w-4 h-4 cursor-pointer accent-brandRed" checked={isReadOnly} onChange={e => { setIsReadOnly(e.target.checked); setParentId(''); }} />
+                                        <label htmlFor="readOnlyCheck" className="text-xs font-bold text-blue-700 dark:text-blue-400 cursor-pointer">Akses Read-Only (Anggota)</label>
+                                    </div>
+                                    {isReadOnly && (
+                                        <select value={parentId} onChange={e=>setParentId(e.target.value)} className="w-full sm:flex-1 p-2.5 rounded-lg bg-white dark:bg-darkBg text-xs md:text-sm outline-none border border-blue-200 dark:border-blue-800 focus:border-brandGreen cursor-pointer" required>
+                                            <option value="">-- Pilih User Utama yang Dipantau --</option>
+                                            {users.filter(u => u.role !== 'anggota').map(u => (
+                                                <option key={u.id} value={u.id}>{u.username}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <button type="submit" className="w-full sm:w-auto bg-brandGreen text-white px-8 py-2.5 rounded-lg font-bold text-xs md:text-sm shrink-0 mt-2 sm:mt-0 shadow-md">Simpan</button>
+                                </div>
+                            </div>
                         </form>
                     )}
 
@@ -1241,13 +1539,14 @@
                                         <th className="p-4 w-12 text-center">No</th>
                                         <th className="p-4">Nama</th>
                                         <th className="p-4">Password</th>
-                                        <th className="p-4 text-center w-24">Aksi</th>
+                                        <th className="p-4">Akses Role</th>
+                                        <th className="p-4 text-center w-28">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {users.length === 0 ? (
                                         <tr>
-                                            <td colSpan="4" className="p-6 text-center text-gray-400">Tidak ada user terdaftar.</td>
+                                            <td colSpan="5" className="p-6 text-center text-gray-400">Tidak ada user terdaftar.</td>
                                         </tr>
                                     ) : (
                                         users.map((u, i) => (
@@ -1259,15 +1558,31 @@
                                                         <span className="font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs text-gray-500">
                                                             {visiblePasswords[u.id] ? u.password : '••••••••'}
                                                         </span>
-                                                        <button onClick={()=>togglePass(u.id)} className="text-gray-400 hover:text-brandRed text-xs">
+                                                        <button type="button" onClick={()=>togglePass(u.id)} className="text-gray-400 hover:text-brandRed text-xs">
                                                             <i className={`fas ${visiblePasswords[u.id] ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                                                         </button>
                                                     </div>
                                                 </td>
+                                                <td className="p-4">
+                                                    {u.role === 'anggota' ? (
+                                                        <span className="inline-flex items-center gap-1.5 text-[10px] bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded-md font-bold">
+                                                            <i className="fas fa-eye"></i> Anggota dari: {users.find(x => x.id === u.parentId)?.username || '?'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 text-[10px] bg-green-50 text-brandGreen dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-2.5 py-1 rounded-md font-bold">
+                                                            <i className="fas fa-user-shield"></i> Utama (CRUD)
+                                                        </span>
+                                                    )}
+                                                </td>
                                                 <td className="p-4 text-center">
-                                                    <button onClick={()=>setDeleteTargetUser(u)} className="w-8 h-8 rounded-lg bg-red-100 text-brandRed hover:bg-brandRed hover:text-white transition-all flex items-center justify-center mx-auto">
-                                                        <i className="fas fa-trash-alt text-xs"></i>
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-0.5">
+                                                        <button type="button" onClick={()=>handleEditClick(u)} className="text-blue-500 hover:text-blue-600 transition p-1 flex items-center justify-center" title="Edit">
+                                                            <i className="fas fa-edit text-lg"></i>
+                                                        </button>
+                                                        <button type="button" onClick={()=>setDeleteTargetUser(u)} className="text-brandRed hover:text-red-600 transition p-1 flex items-center justify-center" title="Hapus">
+                                                            <i className="fas fa-trash-alt text-lg"></i>
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1286,9 +1601,60 @@
                                 <h3 className="text-lg font-bold mb-2">Hapus User?</h3>
                                 <p className="text-sm text-gray-500 mb-6">Yakin ingin menghapus user <span className="font-bold text-gray-800 dark:text-white capitalize">{deleteTargetUser.username}</span> beserta semua data transaksinya dari Cloud? Tindakan ini tidak bisa dibatalkan.</p>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setDeleteTargetUser(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
-                                    <button onClick={confirmDeleteUser} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Hapus User</button>
+                                    <button type="button" onClick={() => setDeleteTargetUser(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
+                                    <button type="button" onClick={confirmDeleteUser} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Hapus User</button>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal Edit Data User */}
+                    {editTargetUser && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-white dark:bg-darkCard w-full max-w-sm rounded-3xl p-6 shadow-2xl border-t-4 border-blue-500">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold">Edit Data User</h3>
+                                    <button type="button" onClick={() => setEditTargetUser(null)} className="text-gray-400 hover:text-gray-800"><i className="fas fa-times"></i></button>
+                                </div>
+                                <form onSubmit={confirmEditUser} className="flex flex-col gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Username</label>
+                                        <div className="relative mt-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <UserImageIcon />
+                                            </div>
+                                            <input type="text" value={editU} onChange={e=>setEditU(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-sm focus:ring-2 focus:ring-blue-500" required />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Password</label>
+                                        <div className="relative mt-1">
+                                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <PasswordImageIcon />
+                                            </div>
+                                            <input type="text" value={editP} onChange={e=>setEditP(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-sm focus:ring-2 focus:ring-blue-500" required />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                                        <input type="checkbox" id="editReadOnlyCheck" className="w-4 h-4 cursor-pointer accent-blue-600" checked={editRole === 'anggota'} onChange={e => { setEditRole(e.target.checked ? 'anggota' : 'utama'); setEditParentId(''); }} />
+                                        <label htmlFor="editReadOnlyCheck" className="text-xs font-bold text-blue-700 dark:text-blue-400 cursor-pointer">Akses Read-Only (Anggota)</label>
+                                    </div>
+                                    {editRole === 'anggota' && (
+                                        <div className="animate-fade-in">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Pantau User Utama</label>
+                                            <select value={editParentId} onChange={e=>setEditParentId(e.target.value)} className="w-full mt-1 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none text-sm focus:ring-2 focus:ring-blue-500 cursor-pointer" required>
+                                                <option value="">-- Pilih User Utama --</option>
+                                                {users.filter(u => u.role !== 'anggota' && u.id !== editTargetUser.id).map(u => (
+                                                    <option key={u.id} value={u.id}>{u.username}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div className="flex gap-3 mt-2">
+                                        <button type="button" onClick={() => setEditTargetUser(null)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
+                                        <button type="submit" className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition shadow-md">Simpan</button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     )}
@@ -1355,8 +1721,18 @@
                         <div className="p-3 md:p-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between md:items-center gap-3">
                             <h3 className="font-bold uppercase text-xs md:text-sm">Riwayat {catLabel} Global</h3>
                             <div className="flex gap-2">
-                                <input type="date" value={fDate} onChange={e=>setFDate(e.target.value)} className="p-2 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto" />
-                                <input type="text" placeholder="Cari nama user..." value={fUser} onChange={e=>setFUser(e.target.value)} className="p-2 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto" />
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                        <TanggalImageIcon />
+                                    </div>
+                                    <input type="date" value={fDate} onChange={e=>setFDate(e.target.value)} className="p-2 pl-9 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto border border-transparent focus:border-brandGreen" />
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                                        <SearchImageIcon />
+                                    </div>
+                                    <input type="text" placeholder="Cari nama user..." value={fUser} onChange={e=>setFUser(e.target.value)} className="p-2 pl-9 text-[10px] md:text-xs rounded-lg bg-gray-100 dark:bg-gray-800 outline-none w-full md:w-auto border border-transparent focus:border-brandGreen" />
+                                </div>
                             </div>
                         </div>
                         <div className="max-h-[50vh] overflow-y-auto p-2 md:p-4 space-y-2 bg-gray-50/30 dark:bg-darkBg/30">
@@ -1440,7 +1816,7 @@
                             </div>
                             <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
                         </label>
-                        <button onClick={async () => { await saveDoc('settings', 'global', { bgImage: '' }); alert('Background di-reset.'); }} className="w-full mt-4 py-2 text-sm text-brandRed border border-brandRed/30 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 font-bold transition">
+                        <button type="button" onClick={async () => { await saveDoc('settings', 'global', { bgImage: '' }); alert('Background di-reset.'); }} className="w-full mt-4 py-2 text-sm text-brandRed border border-brandRed/30 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 font-bold transition">
                             Hapus Latar Belakang
                         </button>
                     </div>
@@ -1450,7 +1826,7 @@
                             <i className="fas fa-radiation-alt"></i> Area Reset Sistem
                         </h3>
                         <p className="text-xs text-gray-500 mb-4">Menghapus seluruh akun user terdaftar serta melenyapkan semua riwayat transaksi yang tersimpan di Cloud database secara permanen.</p>
-                        <button onClick={() => setShowConfirmReset(true)} className="w-full py-3 bg-brandRed text-white rounded-xl font-bold shadow-md hover:bg-red-600 transition duration-200">
+                        <button type="button" onClick={() => setShowConfirmReset(true)} className="w-full py-3 bg-brandRed text-white rounded-xl font-bold shadow-md hover:bg-red-600 transition duration-200">
                             Reset Total Semua Data Cloud
                         </button>
                     </div>
@@ -1464,8 +1840,8 @@
                                 <h3 className="text-lg font-bold mb-2 text-brandRed">PERINGATAN KERAS!</h3>
                                 <p className="text-sm text-gray-500 mb-6">Yakin ingin menghapus seluruh akun user dan semua data transaksi dari Cloud database? Tindakan ini akan melenyapkan sistem secara total dan data tidak dapat dipulihkan kembali.</p>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setShowConfirmReset(false)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
-                                    <button onClick={handleResetCloud} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Reset Sekarang</button>
+                                    <button type="button" onClick={() => setShowConfirmReset(false)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 font-bold text-sm hover:bg-gray-200 transition">Batal</button>
+                                    <button type="button" onClick={handleResetCloud} className="flex-1 py-3 rounded-xl bg-brandRed text-white font-bold text-sm hover:bg-red-600 transition">Reset Sekarang</button>
                                 </div>
                             </div>
                         </div>
