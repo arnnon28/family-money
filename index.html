@@ -251,7 +251,6 @@
         }
 
         function AuthModal({ users, onLogin, onBack, saveDoc }) {
-            const [isRegister, setIsRegister] = useState(false);
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
             const [showPass, setShowPass] = useState(false);
@@ -262,16 +261,9 @@
                 setError('');
                 if(!username || !password) return setError('Isi semua kolom!');
 
-                if (isRegister) {
-                    if (users.find(u => u.username === username)) return setError('Username sudah ada!');
-                    const newUser = { id: generateId(), username, password, targetName: 'Beli Rumah', targetPrice: 500000000 };
-                    await saveDoc('users', newUser.id, newUser);
-                    onLogin(newUser);
-                } else {
-                    const user = users.find(u => u.username === username && u.password === password);
-                    if (user) onLogin(user);
-                    else setError('Username atau password salah!');
-                }
+                const user = users.find(u => u.username === username && u.password === password);
+                if (user) onLogin(user);
+                else setError('Username atau password salah!');
             };
 
             return (
@@ -280,7 +272,7 @@
                         <button onClick={onBack} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800 dark:hover:text-white">
                             <i className="fas fa-arrow-left text-xl"></i>
                         </button>
-                        <h2 className="text-2xl font-bold text-center mb-6">{isRegister ? 'Daftar Akun Baru' : 'Login Akun'}</h2>
+                        <h2 className="text-2xl font-bold text-center mb-6">Login Akun</h2>
                         
                         {error && <div className="bg-red-100 text-red-600 p-3 rounded-xl text-sm mb-4 text-center animate-shake">{error}</div>}
                         
@@ -297,13 +289,9 @@
                                 </button>
                             </div>
                             <button type="submit" className="w-full py-3 mt-2 rounded-xl bg-brandGreen text-white font-bold shadow-md hover:bg-emerald-600 transition">
-                                {isRegister ? 'Daftar Sekarang' : 'Masuk'}
+                                Masuk
                             </button>
                         </form>
-                        <p className="text-center text-sm mt-4 text-gray-500">
-                            {isRegister ? 'Sudah punya akun? ' : 'Belum punya akun? '}
-                            <span onClick={()=>setIsRegister(!isRegister)} className="text-brandGreen font-bold cursor-pointer">{isRegister ? 'Login' : 'Daftar'}</span>
-                        </p>
                     </div>
                 </div>
             );
