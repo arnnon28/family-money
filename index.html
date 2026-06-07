@@ -93,6 +93,25 @@
 
         const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
         const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).substr(2);
+        const getTodayDate = () => {
+            const now = new Date();
+            const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+            return local.toISOString().slice(0, 10);
+        };
+        const normalizeDateValue = (value) => {
+            if (!value || typeof value !== 'string') return '';
+            const normalized = value.trim().replace(/\//g, '-');
+            const parts = normalized.split('-');
+            if (parts.length !== 3) return value;
+            const [first, second, third] = parts;
+            if (first.length === 4) {
+                return `${first}-${second.padStart(2, '0')}-${third.padStart(2, '0')}`;
+            }
+            if (third.length === 4) {
+                return `${third}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+            }
+            return value;
+        };
         const quotes = ["Hemat pangkal kaya.", "Kelola uangmu, atau uang yang mengelolamu.", "Investasi terbaik adalah pada dirimu sendiri.", "Sedikit demi sedikit, lama-lama menjadi bukit."];
 
         // --- Ikon Gambar Vektor Premium (Reusable Inline SVGs) ---
@@ -283,11 +302,11 @@
                 const settingsRef = doc(fb.db, 'artifacts', appId, 'public', 'data', 'settings', 'global');
 
                 const unsubUsers = onSnapshot(usersRef, snap => {
-                    setUsers(snap.docs.map(d => ({ docId: d.id, ...d.data() })));
+                    setUsers(snap.docs.map(d => ({ ...d.data(), id: d.id })));
                 }, err => console.error(err));
 
                 const unsubTx = onSnapshot(txRef, snap => {
-                    setTransactions(snap.docs.map(d => ({ docId: d.id, ...d.data() })));
+                    setTransactions(snap.docs.map(d => ({ ...d.data(), id: d.id })));
                 }, err => console.error(err));
 
                 const unsubSettings = onSnapshot(settingsRef, snap => {
@@ -596,7 +615,8 @@
                 
                 userTx.forEach(tx => {
                     if (!tx.date) return;
-                    const parts = tx.date.split('-');
+                    const normalizedDate = normalizeDateValue(tx.date);
+                    const parts = normalizedDate.split('-');
                     if (parts.length === 3) {
                         const year = parseInt(parts[0], 10);
                         const month = parseInt(parts[1], 10) - 1;
@@ -714,7 +734,7 @@
         function TransactionModal({ type, onClose, userData, saveDoc, initialData }) {
             const [amount, setAmount] = useState(initialData ? initialData.amount.toString() : '');
             const [name, setName] = useState(initialData ? initialData.name : '');
-            const [date, setDate] = useState(initialData ? initialData.date : new Date().toISOString().split('T')[0]);
+            const [date, setDate] = useState(initialData ? normalizeDateValue(initialData.date) : getTodayDate());
             const [category, setCategory] = useState(initialData ? initialData.category : 'Umum');
             
             const activeType = initialData ? initialData.type : type;
@@ -736,7 +756,7 @@
                     category,
                     name,
                     amount: Number(amount),
-                    date,
+                    date: normalizeDateValue(date),
                     timestamp: isEditing ? initialData.timestamp : Date.now(),
                     hiddenInLoan: isEditing ? initialData.hiddenInLoan : false
                 };
@@ -829,12 +849,12 @@
                 let res = [...userTx].sort((a,b) => b.timestamp - a.timestamp);
                 if(filterTab === 'pemasukan') res = res.filter(t => t.type === 'income');
                 if(filterTab === 'pengeluaran') res = res.filter(t => t.type === 'expense');
-                if(searchDate) res = res.filter(t => t.date === searchDate);
+                if(searchDate) res = res.filter(t => normalizeDateValue(t.date) === normalizeDateValue(searchDate));
                 if(searchName) res = res.filter(t => t.name.toLowerCase().includes(searchName.toLowerCase()));
                 return res;
             }, [userTx, filterTab, searchDate, searchName]);
 
-            const totalAmount = useMemo(() => filteredTx.reduce((acc, curr) => acc + (acc = curr.type === 'income' ? curr.amount : -curr.amount), 0), [filteredTx]);
+            const totalAmount = useMemo(() => filteredTx.reduce((acc, curr) => acc + (curr.type === 'income' ? Number(curr.amount) : -Number(curr.amount)), 0), [filteredTx]);
 
             const handleDeleteTransaction = async () => {
                 if (!deleteTxConfirm) return;
@@ -1084,7 +1104,7 @@
             }, [isReadOnly]);
             
             const listData = useMemo(() => {
-                let raw = userTx.filter(t => t.category.toLowerCase() === tab);
+                let raw = userTx.filter(t => (t.category || '').toLowerCase() === tab);
                 if(tab === 'pinjaman') raw = raw.filter(t => !t.hiddenInLoan);
                 return raw.sort((a,b) => b.timestamp - a.timestamp);
             }, [userTx, tab]);
@@ -1336,7 +1356,7 @@
 
             const listFiltered = useMemo(() => {
                 let res = [...transactions].sort((a,b) => b.timestamp - a.timestamp);
-                if(filterDate) res = res.filter(t => t.date === filterDate);
+                if(filterDate) res = res.filter(t => normalizeDateValue(t.date) === normalizeDateValue(filterDate));
                 if(filterUser) {
                     const term = filterUser.toLowerCase();
                     res = res.filter(t => {
@@ -1679,8 +1699,8 @@
             const catLabel = tab === 'tabungan' ? 'Tabungan' : 'Pinjaman';
             
             const listData = useMemo(() => {
-                let res = transactions.filter(t => t.category.toLowerCase() === tab).sort((a,b) => b.timestamp - a.timestamp);
-                if(fDate) res = res.filter(t => t.date === fDate);
+                let res = transactions.filter(t => (t.category || '').toLowerCase() === tab).sort((a,b) => b.timestamp - a.timestamp);
+                if(fDate) res = res.filter(t => normalizeDateValue(t.date) === normalizeDateValue(fDate));
                 if(fUser) {
                     const term = fUser.toLowerCase();
                     res = res.filter(t => {
@@ -1693,7 +1713,7 @@
 
             const globalTotal = useMemo(() => {
                 let total = 0;
-                transactions.filter(t => t.category.toLowerCase() === tab).forEach(tx => {
+                transactions.filter(t => (t.category || '').toLowerCase() === tab).forEach(tx => {
                     const amt = Number(tx.amount);
                     if (tab === 'tabungan') {
                         if(tx.type === 'income') total -= amt; 
