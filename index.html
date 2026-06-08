@@ -85,9 +85,16 @@
         }
 
         .global-bg {
-            position: fixed; top: 0; left: 0; width: 100vw; min-height: 100vh;
-            background-size: 100% auto; background-position: top center; background-repeat: no-repeat;
-            z-index: -1; opacity: 0.15; pointer-events: none;
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            background-size: 100% 100%;
+            background-position: center center;
+            background-repeat: no-repeat;
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
         }
     </style>
 </head>
