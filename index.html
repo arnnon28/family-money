@@ -1278,8 +1278,7 @@
                     <div className="bg-white/0 dark:bg-darkCard/0 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-4">
                         <div className="flex items-center justify-between gap-2 mb-2">
                             <div>
-                                <h3 className="text-lg font-bold">Latar Belakang Pribadi</h3>
-                                <p className="text-xs text-gray-500">Hanya akan berlaku untuk tampilan Anda sendiri.</p>
+                                <h3 className="text-lg font-bold text-center">Gambar Latar Belakang</h3>
                             </div>
                         </div>
                         {customBg && (
@@ -1290,14 +1289,13 @@
                         <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
                             <div className="flex flex-col items-center justify-center pt-3 pb-4">
                                 <i className="fas fa-image text-3xl text-gray-400 mb-2"></i>
-                                <p className="mb-1 text-sm text-gray-500"><span className="font-bold">Klik untuk mengganti latar belakang</span></p>
-                                <p className="text-[10px] text-gray-400">Gunakan gambar dengan lebar minimal 1200px agar tetap jelas.</p>
+                                <p className="mb-1 text-sm text-gray-500"><span className="font-bold">Klik disini untuk mengganti Gambar</span></p>
                             </div>
                             <input type="file" className="hidden" accept="image/*" onChange={handleCustomBgUpload} />
                         </label>
                         {customBg && (
                             <button type="button" onClick={handleResetCustomBg} className="w-full py-3 text-sm text-brandRed border border-brandRed/30 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 font-bold transition">
-                                Reset Latar Belakang Pribadi
+                                Hapus Gambar
                             </button>
                         )}
                     </div>
