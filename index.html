@@ -715,18 +715,6 @@
                         </div>
                     </div>
 
-                    {isAlert && (
-                        <div className="bg-red-100 dark:bg-red-950/40 border-2 border-brandRed p-4 rounded-xl flex items-start gap-3 shadow-lg text-brandRed animate-shake">
-                            <i className="fas fa-exclamation-triangle text-2xl mt-1 shrink-0 animate-blink"></i>
-                            <div>
-                                <h4 className="font-bold text-sm uppercase tracking-wide mb-1 animate-blink text-brandRed">Peringatan Kritis!</h4>
-                                <p className="text-xs text-red-800 dark:text-red-200 leading-relaxed">
-                                    Halo <span className="font-black uppercase">{userData.username}</span>! Pengeluaran bulan ini sudah menembus <span className="font-bold bg-brandRed text-white px-1 rounded">80% dari pemasukan</span> bulan ini. Jika tidak direm sekarang, target impian <span className="underline font-bold">"{userData.targetName}"</span> kamu bisa tertunda sangat lama! Yuk tahan nafsu belanjamu.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
                     <div className="bg-white/0 dark:bg-darkCard/0 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800">
                         <div className="flex justify-between items-center mb-2">
                             <p className="text-xs font-bold text-gray-500 uppercase">Target: {userData.targetName}</p>
@@ -1121,7 +1109,7 @@
 
                         <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 grid grid-cols-2 gap-4 text-left">
                             <div>
-                                <p className="text-[10px] text-gray-500 uppercase font-bold">Tabungan</p>
+                                <p className="text-[10px] text-gray-500 uppercase font-bold">Terkumpul (Tabungan)</p>
                                 <p className="text-sm font-bold text-brandGreen">{formatRp(tabungan)}</p>
                             </div>
                             <div>
@@ -1288,28 +1276,6 @@
                     {msg && <div className="bg-green-100 text-green-700 p-3 rounded-xl text-sm font-bold text-center animate-fade-in">{msg}</div>}
 
                     <div className="bg-white/0 dark:bg-darkCard/0 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-4">
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ubah Nama</label>
-                            <div className="relative mt-1">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <UserImageIcon />
-                                </div>
-                                <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none border border-transparent focus:border-brandGreen" />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ubah Password</label>
-                            <div className="relative mt-1">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <PasswordImageIcon />
-                                </div>
-                                <input type="text" value={pass} onChange={e=>setPass(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none border border-transparent focus:border-brandGreen" />
-                            </div>
-                        </div>
-                        <button type="button" onClick={handleSave} className="w-full py-3 bg-brandGreen text-white rounded-xl font-bold shadow-md hover:bg-emerald-600 transition">Simpan Perubahan</button>
-                    </div>
-
-                    <div className="bg-white/0 dark:bg-darkCard/0 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-4">
                         <div className="flex items-center justify-between gap-2 mb-2">
                             <div>
                                 <h3 className="text-lg font-bold">Latar Belakang Pribadi</h3>
@@ -1336,6 +1302,28 @@
                         )}
                     </div>
 
+                    <div className="bg-white/0 dark:bg-darkCard/0 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ubah Nama</label>
+                            <div className="relative mt-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <UserImageIcon />
+                                </div>
+                                <input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none border border-transparent focus:border-brandGreen" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ubah Password</label>
+                            <div className="relative mt-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <PasswordImageIcon />
+                                </div>
+                                <input type="text" value={pass} onChange={e=>setPass(e.target.value)} className="w-full p-3 pl-10 rounded-xl bg-gray-100 dark:bg-gray-800 outline-none border border-transparent focus:border-brandGreen" />
+                            </div>
+                        </div>
+                        <button type="button" onClick={handleSave} className="w-full py-3 bg-brandGreen text-white rounded-xl font-bold shadow-md hover:bg-emerald-600 transition">Simpan Perubahan</button>
+                    </div>
+                    
                     <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/30">
                         <h3 className="font-bold text-brandRed mb-2"><i className="fas fa-exclamation-triangle mr-2"></i>Zona Berbahaya</h3>
                         <p className="text-xs text-gray-500 mb-4">Menghapus semua riwayat akan mereset saldo Anda menjadi 0. Tindakan ini tidak dapat dibatalkan.</p>
