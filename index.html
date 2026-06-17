@@ -60,6 +60,22 @@
     
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Registrasi Preset Kustom Babel Secara Dinamis -->
+    <script>
+        // Memaksa Babel Standalone menggunakan runtime klasik (React.createElement)
+        // dengan merujuk langsung ke preset yang sudah ter-bundle.
+        Babel.registerPreset('react-classic', {
+            presets: [
+                [Babel.availablePresets['react'], { runtime: 'classic' }]
+            ]
+        });
+    </script>
+
+    <!-- Firebase SDK (Global Scripts) -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700;800;900&display=swap');
@@ -101,7 +117,8 @@
 <body class="bg-gray-50 text-gray-900 dark:bg-darkBg dark:text-gray-100 antialiased overflow-x-hidden selection:bg-brandGreen selection:text-white">
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
+    <!-- Gunakan preset kustom 'react-classic' yang telah didaftarkan di atas -->
+    <script type="text/babel" data-presets="env,react-classic">
         const { useState, useEffect, useMemo } = React;
 
         const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0);
@@ -286,14 +303,10 @@
             const currentUserDoc = currentUser ? (users.find(u => u.id === currentUser.id) || currentUser) : null;
             const effectiveBgImage = currentUserDoc?.customBg || bgImage;
 
-            // --- Initialize Firebase dynamically ---
+            // --- Initialize Firebase dynamically using the global compat script ---
             useEffect(() => {
                 const initFirebase = async () => {
                     try {
-                        const appModule = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
-                        const authModule = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js');
-                        const firestoreModule = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js');
-
                         let config;
                         if (typeof __firebase_config !== 'undefined') {
                             config = JSON.parse(__firebase_config);
@@ -308,17 +321,18 @@
                             };
                         }
 
-                        const app = appModule.initializeApp(config);
-                        const auth = authModule.getAuth(app);
-                        const db = firestoreModule.getFirestore(app);
+                        // Initialize Firebase using compat globals
+                        const app = !firebase.apps.length ? firebase.initializeApp(config) : firebase.app();
+                        const auth = firebase.auth();
+                        const db = firebase.firestore();
 
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await authModule.signInWithCustomToken(auth, __initial_auth_token);
+                            await auth.signInWithCustomToken(__initial_auth_token);
                         } else {
-                            await authModule.signInAnonymously(auth);
+                            await auth.signInAnonymously();
                         }
 
-                        setFb({ db, firestoreModule, authModule, auth });
+                        setFb({ db, auth });
                     } catch (error) {
                         console.error("Firebase Init Error:", error);
                         setLoadingStr('Gagal memuat database.');
@@ -338,23 +352,22 @@
             // --- Data Listeners ---
             useEffect(() => {
                 if (!fb?.db) return;
-                const { collection, onSnapshot, doc } = fb.firestoreModule;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'family-money';
                 
-                const usersRef = collection(fb.db, 'artifacts', appId, 'public', 'data', 'users');
-                const txRef = collection(fb.db, 'artifacts', appId, 'public', 'data', 'transactions');
-                const settingsRef = doc(fb.db, 'artifacts', appId, 'public', 'data', 'settings', 'global');
+                const usersRef = fb.db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users');
+                const txRef = fb.db.collection('artifacts').doc(appId).collection('public').doc('data').collection('transactions');
+                const settingsRef = fb.db.collection('artifacts').doc(appId).collection('public').doc('data').collection('settings').doc('global');
 
-                const unsubUsers = onSnapshot(usersRef, snap => {
+                const unsubUsers = usersRef.onSnapshot(snap => {
                     setUsers(snap.docs.map(d => ({ ...d.data(), id: d.id })));
                 }, err => console.error(err));
 
-                const unsubTx = onSnapshot(txRef, snap => {
+                const unsubTx = txRef.onSnapshot(snap => {
                     setTransactions(snap.docs.map(d => ({ ...d.data(), id: d.id })));
                 }, err => console.error(err));
 
-                const unsubSettings = onSnapshot(settingsRef, snap => {
-                    if(snap.exists()) setBgImage(snap.data().bgImage || '');
+                const unsubSettings = settingsRef.onSnapshot(snap => {
+                    if(snap.exists) setBgImage(snap.data().bgImage || '');
                 });
 
                 return () => { unsubUsers(); unsubTx(); unsubSettings(); };
@@ -363,18 +376,16 @@
             // --- Database Helpers ---
             const saveDoc = async (collectionName, id, data) => {
                 if(!fb) return;
-                const { doc, setDoc } = fb.firestoreModule;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'family-money';
-                const ref = doc(fb.db, 'artifacts', appId, 'public', 'data', collectionName, id);
-                await setDoc(ref, data, { merge: true });
+                const ref = fb.db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName).doc(id);
+                await ref.set(data, { merge: true });
             };
 
             const deleteDocRef = async (collectionName, id) => {
                 if(!fb) return;
-                const { doc, deleteDoc } = fb.firestoreModule;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'family-money';
-                const ref = doc(fb.db, 'artifacts', appId, 'public', 'data', collectionName, id);
-                await deleteDoc(ref);
+                const ref = fb.db.collection('artifacts').doc(appId).collection('public').doc('data').collection(collectionName).doc(id);
+                await ref.delete();
             };
 
             // --- Render Logic ---
@@ -408,7 +419,7 @@
                 <div className="flex flex-col items-center justify-center min-h-screen relative p-4">
                     <div className="absolute top-4 right-4 flex gap-3">
                         <button onClick={toggleTheme} className="w-10 h-10 rounded-full bg-glass flex items-center justify-center text-xl hover:scale-110 transition">
-                            <i className={`fas ${theme === 'dark' ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-700'}`}></i>
+                            <i className={`fas ${theme === 'dark' ? 'fa-sun text-yellow-400' : 'fa-moon text-gray-400'}`}></i>
                         </button>
                         <button onClick={onAdminClick} className="w-10 h-10 rounded-full bg-glass flex items-center justify-center text-sm opacity-50 hover:opacity-100 transition">
                             <i className="fas fa-lock"></i>
@@ -426,6 +437,7 @@
             );
         }
 
+        // --- AuthModal ---
         function AuthModal({ users, onLogin, onBack, saveDoc }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
@@ -483,6 +495,7 @@
             );
         }
 
+        // --- AdminAuthModal ---
         function AdminAuthModal({ onLogin, onBack }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
@@ -650,9 +663,9 @@
         // --- Beranda ---
         function UserBeranda({ stats, userTx, userData, saveDoc, isReadOnly, onOpenGlobalModal }) {
             const monthlyStats = useMemo(() => {
-                const now = new Date();
-                const currentYear = now.getFullYear();
-                const currentMonth = now.getMonth();
+                const nav = new Date();
+                const currentYear = nav.getFullYear();
+                const currentMonth = nav.getMonth();
                 
                 let income = 0;
                 let expense = 0;
@@ -798,7 +811,7 @@
             };
 
             return (
-                <div className="fixed top-[64px] bottom-[64px] md:top-0 md:bottom-0 left-0 right-0 z-20 md:z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
+                <div className="fixed top-[64px] bottom-[64px] md:top-0 md:bottom-0 left-0 right-0 z-20 md:z-50 flex items-center justify-center p-4 bg-black/66 backdrop-blur-sm overflow-hidden">
                     <div className={`bg-white/0 dark:bg-darkCard/0 w-full md:max-w-md rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-2xl animate-fade-in border-t-4 flex flex-col max-h-full ${activeType === 'income' ? 'border-brandGreen' : 'border-brandRed'}`}>
                         {/* Header Modal - Tetap Fixed di atas Card */}
                         <div className="flex justify-between items-center mb-5 shrink-0">
@@ -1321,7 +1334,7 @@
                         </div>
                         <button type="button" onClick={handleSave} className="w-full py-3 bg-brandGreen text-white rounded-xl font-bold shadow-md hover:bg-emerald-600 transition">Simpan Perubahan</button>
                     </div>
-                    
+
                     <div className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/30">
                         <h3 className="font-bold text-brandRed mb-2"><i className="fas fa-exclamation-triangle mr-2"></i>Zona Berbahaya</h3>
                         <p className="text-xs text-gray-500 mb-4">Menghapus semua riwayat akan mereset saldo Anda menjadi 0. Tindakan ini tidak dapat dibatalkan.</p>
@@ -1832,7 +1845,7 @@
                     <div className={`relative ${tab === 'tabungan' ? 'bg-emerald-900 text-white border-transparent' : 'bg-yellow-900 text-white border-transparent'} rounded-3xl p-6 text-center shadow-xl overflow-hidden`}>
                         <i className={`fas ${tab === 'tabungan' ? 'fa-piggy-bank' : 'fa-hand-holding-usd'} absolute -right-4 -bottom-4 text-9xl opacity-20`}></i>
                         <p className="text-white/80 font-bold uppercase text-[10px] md:text-xs mb-2">Total Akumulasi {catLabel} Seluruh User</p>
-                        <h2 className="text-3xl md:text-4xl font-black">{formatRp(globalTotal)}</h2>
+                        <p className="text-3xl md:text-4xl font-black">{formatRp(globalTotal)}</p>
                     </div>
 
                     <div className="bg-white/0 dark:bg-darkCard/0 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
